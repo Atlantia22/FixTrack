@@ -1,5 +1,6 @@
 import { MdPersonAdd, MdPersonSearch, MdSearch } from 'react-icons/md'
 import FormField from '../../../components/FormField/FormField'
+import { cleanDocumentNumber, documentNumberHint, DOCUMENT_RULES } from '../../../utils/document'
 import { DOCUMENT_TYPE_LABELS, toOptions } from '../../../utils/labels'
 import ContactField from '../../../components/ContactField/ContactField'
 import './CustomerSection.css'
@@ -28,9 +29,18 @@ export default function CustomerSection({ value, errors, lookup, onChange, onLoo
             </select>
           )}
         </FormField>
-        <FormField id="intake-doc-number" label="Número de documento" error={errors.documentNumber} required>
+        <FormField id="intake-doc-number" label="Número de documento" error={errors.documentNumber} hint={documentNumberHint(value.documentType)} required>
           {(props) => (
-            <input {...props} className="form-input" maxLength={20} autoComplete="off" value={value.documentNumber} onChange={(event) => onChange('documentNumber', event.target.value)} onKeyDown={handleDocumentKeyDown} />
+            <input
+              {...props}
+              className="form-input"
+              inputMode={DOCUMENT_RULES[value.documentType].numeric ? 'numeric' : 'text'}
+              maxLength={DOCUMENT_RULES[value.documentType].max}
+              autoComplete="off"
+              value={value.documentNumber}
+              onChange={(event) => onChange('documentNumber', cleanDocumentNumber(value.documentType, event.target.value))}
+              onKeyDown={handleDocumentKeyDown}
+            />
           )}
         </FormField>
         <button type="button" className="btn btn--secondary customer-section__search" onClick={onLookup} disabled={lookup.loading}>

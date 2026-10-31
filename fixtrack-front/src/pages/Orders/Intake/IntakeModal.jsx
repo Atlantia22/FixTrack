@@ -1,11 +1,14 @@
 import { useId, useState } from 'react'
+import { MdPrint } from 'react-icons/md'
 import Modal from '../../../components/Modal/Modal'
 import { useToast } from '../../../hooks/useToast'
 import * as deviceService from '../../../services/deviceService'
 import * as interventionService from '../../../services/interventionService'
 import * as paymentService from '../../../services/paymentService'
 import * as personService from '../../../services/personService'
+import { cleanDocumentNumber, documentNumberError } from '../../../utils/document'
 import { getErrorMessage, getFieldErrors } from '../../../utils/errors'
+import { printPdf } from '../../../utils/files'
 import { todayInBogota } from '../../../utils/format'
 import CustomerSection from './CustomerSection'
 import DepositSection from './DepositSection'
@@ -23,7 +26,7 @@ const EMPTY_DEPOSIT = { amount: '', method: 'CASH' }
 const EMPTY_DEVICE = { deviceId: '', brandId: '', deviceModelId: '', imei: '', serialNumber: '', color: '', observations: '' }
 
 function emptyService() {
-  return { serviceType: '', unlockCode: '', problemDescription: '', physicalCondition: '', technicianId: '', estimatedPrice: '', estimatedDeliveryDate: todayInBogota() }
+  return { serviceTypes: [], unlockCode: '', problemDescription: '', physicalCondition: '', technicianId: '', estimatedPrice: '', estimatedDeliveryDate: todayInBogota() }
 }
 
 // Reglas del ingreso: documento buscado, «No tiene» explícito, IMEI en teléfonos y entrega desde hoy
@@ -44,7 +47,7 @@ function validate({ customer, lookup, device, models, service, deposit, today })
     if (model?.deviceType === 'PHONE' && !/^\d{15}$/.test(device.imei)) errors.imei = 'El IMEI de los teléfonos tiene 15 dígitos.'
     else if (device.imei && !/^\d{15}$/.test(device.imei)) errors.imei = 'El IMEI tiene 15 dígitos.'
   }
-  if (!service.serviceType) errors.serviceType = 'Elija el servicio inicial.'
+  if (service.serviceTypes.length === 0) errors.serviceTypes = 'Agregue al menos un daño.'
   if (!service.problemDescription.trim()) errors.problemDescription = 'Describa el problema.'
   if (!service.physicalCondition.trim()) errors.physicalCondition = 'Describa el estado físico del equipo.'
   if (!MONEY_PATTERN.test(service.estimatedPrice)) errors.estimatedPrice = 'Escriba el presupuesto, con máximo 2 decimales.'
@@ -76,7 +79,7 @@ function toRequest({ customer, lookup, device, service }) {
         color: device.color.trim() || null,
         observations: device.observations.trim() || null,
       },
-    serviceType: service.serviceType,
+    serviceTypes: service.serviceTypes,
     problemDescription: service.problemDescription.trim(),
     physicalCondition: service.physicalCondition.trim(),
     unlockCode: service.unlockCode || null,
@@ -100,6 +103,7 @@ export default function IntakeModal({ brands, models, technicians, onClose, onCr
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
   const [result, setResult] = useState(null)
+  const [printing, setPrinting] = useState(false)
 
   const isDirty = !result && (customer.documentNumber !== '' || service.problemDescription !== '' || device.deviceModelId !== '')
 
@@ -109,8 +113,13 @@ export default function IntakeModal({ brands, models, technicians, onClose, onCr
 
   // Cambiar el documento invalida la búsqueda anterior y los equipos que trajo
   function changeCustomer(field, value) {
-    setCustomer((current) => ({ ...current, [field]: value }))
-    clearError({ noPhone: 'phone', noEmail: 'email' }[field] ?? field)
+    setCustomer((current) => ({
+      ...current,
+      [field]: value,
+      // Al cambiar el tipo, el número se ajusta a lo que el nuevo tipo admite
+      ...(field === 'documentType' ? { documentNumber: cleanDocumentNumber(value, current.documentNumber) } : {}),
+    }))
+    clearError({ noPhone: 'phone', noEmail: 'email', documentType: 'documentNumber' }[field] ?? field)
     if (field === 'documentType' || field === 'documentNumber') {
       setLookup({ done: false, loading: false, person: null })
       setDevices([])
@@ -135,8 +144,9 @@ export default function IntakeModal({ brands, models, technicians, onClose, onCr
 
   // Busca al cliente por documento; si existe trae sus datos de contacto y sus equipos
   async function handleLookup() {
-    if (!customer.documentNumber.trim()) {
-      setErrors((current) => ({ ...current, documentNumber: 'Escriba el número de documento.' }))
+    const documentError = documentNumberError(customer.documentType, customer.documentNumber.trim())
+    if (documentError) {
+      setErrors((current) => ({ ...current, documentNumber: documentError }))
       return
     }
     setLookup({ done: false, loading: true, person: null })
@@ -199,10 +209,26 @@ export default function IntakeModal({ brands, models, technicians, onClose, onCr
     }
   }
 
+  // Abre el diálogo de impresión del comprobante con la clave que se acaba de generar
+  async function handlePrint() {
+    setPrinting(true)
+    try {
+      await printPdf(() => interventionService.getIntakeReceipt(result.intervention.id, result.accessKey))
+    } catch (requestError) {
+      showError(getErrorMessage(requestError))
+    } finally {
+      setPrinting(false)
+    }
+  }
+
   const footer = result ? (
     <>
       <button type="button" className="btn btn--secondary" onClick={onClose}>Cerrar</button>
-      <button type="button" className="btn btn--primary" onClick={() => onOpenOrder(result.intervention.id)}>Ver la orden</button>
+      <button type="button" className="btn btn--secondary" onClick={() => onOpenOrder(result.intervention.id)}>Ver la orden</button>
+      <button type="button" className="btn btn--primary" disabled={printing} onClick={handlePrint}>
+        <MdPrint aria-hidden="true" />
+        {printing ? 'Preparando…' : 'Imprimir comprobante'}
+      </button>
     </>
   ) : (
     <>

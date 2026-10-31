@@ -144,15 +144,18 @@ public class InterventionServiceImpl implements InterventionService {
 				.estimatedDeliveryDate(request.estimatedDeliveryDate())
 				.build());
 
-		// 4. Servicio inicial como hallazgo aprobado y primer registro del historial
-		findingRepository.save(InterventionFinding.builder()
-				.intervention(intervention)
-				.serviceType(request.serviceType())
-				.description(intervention.getProblemDescription())
-				.origin(FindingOrigin.INITIAL)
-				.approvalStatus(ApprovalStatus.APPROVED)
-				.reportedBy(advisor)
-				.build());
+		// 4. Cada daño reportado como hallazgo inicial aprobado (sin repetir) y primer registro del historial
+		findingRepository.saveAll(request.serviceTypes().stream()
+				.distinct()
+				.map(serviceType -> InterventionFinding.builder()
+						.intervention(intervention)
+						.serviceType(serviceType)
+						.description(intervention.getProblemDescription())
+						.origin(FindingOrigin.INITIAL)
+						.approvalStatus(ApprovalStatus.APPROVED)
+						.reportedBy(advisor)
+						.build())
+				.toList());
 		recordStatusChange(intervention, null, InterventionStatus.RECEIVED, advisor, "Ingreso del equipo");
 
 		String warning = customer.getPhone() == null && customer.getEmail() == null ? NO_CONTACT_WARNING : null;

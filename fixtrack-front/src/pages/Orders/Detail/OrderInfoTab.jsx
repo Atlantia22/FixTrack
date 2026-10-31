@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import PatternLock from '../../../components/PatternLock/PatternLock'
 import { MdEditCalendar, MdVisibility, MdVisibilityOff } from 'react-icons/md'
 import { useAuth } from '../../../hooks/useAuth'
 import { useToast } from '../../../hooks/useToast'
@@ -7,6 +8,7 @@ import { getErrorMessage } from '../../../utils/errors'
 import { displayOrNT, formatCurrency, formatDate } from '../../../utils/format'
 import { AVAILABILITY_LABELS, DEVICE_TYPE_LABELS } from '../../../utils/labels'
 import { isAssignedTechnician, isFrontDesk } from '../../../utils/permissions'
+import { isSavedPattern, parsePattern } from '../../../utils/unlockPattern'
 import OrderFrontDeskActions from './OrderFrontDeskActions'
 import OrderRescheduleForm from './OrderRescheduleForm'
 import './OrderInfoTab.css'
@@ -21,6 +23,7 @@ export default function OrderInfoTab({ order, technicians, onUpdated }) {
   const [assigning, setAssigning] = useState(false)
 
   const open = order.nextStatuses.length > 0
+  const unlockIsPattern = isSavedPattern(order.unlockCode)
   const canReschedule = open && (isFrontDesk(user) || isAssignedTechnician(order, user))
   const canAssign = open && isFrontDesk(user)
 
@@ -124,6 +127,7 @@ export default function OrderInfoTab({ order, technicians, onUpdated }) {
             <dd>
               {order.unlockCode ? (
                 <span className="order-info__unlock">
+                  {unlockIsPattern && <span>Patrón</span>}
                   <code>{showUnlock ? order.unlockCode : '•'.repeat(Math.min(order.unlockCode.length, 8))}</code>
                   <button
                     type="button"
@@ -135,6 +139,11 @@ export default function OrderInfoTab({ order, technicians, onUpdated }) {
                   </button>
                 </span>
               ) : 'No registrada o no disponible para usted'}
+              {unlockIsPattern && showUnlock && (
+                <div className="order-info__pattern">
+                  <PatternLock points={parsePattern(order.unlockCode)} readOnly label="Patrón de desbloqueo del cliente" />
+                </div>
+              )}
             </dd>
           </div>
         </dl>

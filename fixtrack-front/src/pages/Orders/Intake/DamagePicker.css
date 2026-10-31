@@ -1,0 +1,47 @@
+.damage-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.damage-picker__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.damage-picker__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.125rem 0.125rem 0.125rem var(--space-3);
+  border: 0.0625rem solid var(--color-primary);
+  border-radius: var(--radius-full);
+  background-color: var(--color-primary-soft);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.damage-picker__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+  cursor: pointer;
+}
+
+.damage-picker__remove:hover {
+  background-color: var(--color-surface);
+  color: var(--color-danger);
+}

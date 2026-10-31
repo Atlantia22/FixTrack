@@ -177,6 +177,7 @@ public class PersonServiceImpl implements PersonService {
 			return person;
 		}
 
+		requireValidDocument(request.documentType(), documentNumber);
 		if (request.fullName() == null || request.fullName().isBlank()) {
 			throw new BusinessRuleException("El nombre es obligatorio para registrar un cliente nuevo");
 		}
@@ -253,6 +254,7 @@ public class PersonServiceImpl implements PersonService {
 		boolean customer = request.role() == Role.CUSTOMER;
 
 		String documentNumber = normalizeDocument(request.documentNumber());
+		requireValidDocument(request.documentType(), documentNumber);
 		boolean duplicateDocument = person.getId() == null
 				? personRepository.existsByDocumentTypeAndDocumentNumber(request.documentType(), documentNumber)
 				: personRepository.existsByDocumentTypeAndDocumentNumberAndIdNot(request.documentType(), documentNumber,
@@ -363,6 +365,12 @@ public class PersonServiceImpl implements PersonService {
 	private PersonResponse toResponse(Person person) {
 		return personMapper.toResponse(person,
 				specialtiesByPerson(List.of(person.getId())).getOrDefault(person.getId(), List.of()));
+	}
+
+	private void requireValidDocument(DocumentType documentType, String documentNumber) {
+		if (!documentType.isValidNumber(documentNumber)) {
+			throw new BusinessRuleException(documentType.rule());
+		}
 	}
 
 	private String normalizeDocument(String documentNumber) {

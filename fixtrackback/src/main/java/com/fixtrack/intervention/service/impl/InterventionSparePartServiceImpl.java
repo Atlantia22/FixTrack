@@ -15,6 +15,7 @@ import com.fixtrack.common.ForbiddenException;
 import com.fixtrack.common.NotFoundException;
 import com.fixtrack.infra.security.AuthenticatedUser;
 import com.fixtrack.intervention.dto.InterventionPartsResponse;
+import com.fixtrack.intervention.dto.NewPartUsageRequest;
 import com.fixtrack.intervention.dto.PersonRef;
 import com.fixtrack.intervention.dto.SparePartUsageRequest;
 import com.fixtrack.intervention.dto.SparePartUsageResponse;
@@ -71,18 +72,43 @@ public class InterventionSparePartServiceImpl implements InterventionSparePartSe
 	public InterventionPartsResponse register(Long interventionId, SparePartUsageRequest request,
 			AuthenticatedUser actor) {
 		Intervention intervention = findEditableIntervention(interventionId, actor);
+		consume(intervention, request.sparePartId(), request.quantity(), personService.getEntity(actor.id()));
+		return toResponse(intervention, actor);
+	}
+
+	// Repuesto conseguido por el técnico: alta en el inventario, entrada IN_PURCHASE con lo conseguido y consumo en la orden
+	@Override
+	@Transactional
+	public InterventionPartsResponse registerNewPart(Long interventionId, NewPartUsageRequest request,
+			AuthenticatedUser actor) {
+		Intervention intervention = findEditableIntervention(interventionId, actor);
+		if (request.quantityUsed() > request.quantityObtained()) {
+			throw new BusinessRuleException("No puede usar más unidades de las que consiguió");
+		}
 		Person technician = personService.getEntity(actor.id());
 
+		// 1. Repuesto nuevo para el modelo del equipo y entrada de las unidades conseguidas
+		SparePart part = sparePartService.createForRequest(request.part(),
+				intervention.getDevice().getDeviceModel().getId());
+		stockService.registerPurchase(part.getId(), request.quantityObtained(), part.getCostPrice(),
+				"Conseguido por el técnico para la orden " + InterventionCode.of(intervention), technician, null);
+
+		// 2. Consumo en la orden; lo que sobre queda en el inventario
+		consume(intervention, part.getId(), request.quantityUsed(), technician);
+		return toResponse(intervention, actor);
+	}
+
+	// Descuenta el stock, guarda el consumo con los precios del momento y revisa los daños adicionales con el nuevo total
+	private void consume(Intervention intervention, Long sparePartId, int quantity, Person technician) {
 		// 1. Stock y movimiento; si no alcanza o hay otro uso simultáneo se revierte todo
-		SparePart part = stockService.consumeForRepair(request.sparePartId(), request.quantity(), intervention,
-				technician);
+		SparePart part = stockService.consumeForRepair(sparePartId, quantity, intervention, technician);
 
 		// 2. Consumo con los precios del momento; en garantías el cliente no paga el repuesto
 		BigDecimal unitPrice = intervention.getWarrantyOf() != null ? BigDecimal.ZERO : part.getSalePrice();
 		usageRepository.save(InterventionSparePart.builder()
 				.intervention(intervention)
 				.sparePart(part)
-				.quantity(request.quantity())
+				.quantity(quantity)
 				.unitPrice(unitPrice.setScale(2, RoundingMode.HALF_UP))
 				.costPrice(part.getCostPrice())
 				.createdBy(technician)
@@ -90,7 +116,6 @@ public class InterventionSparePartServiceImpl implements InterventionSparePartSe
 
 		// 3. Con el nuevo total, los daños adicionales pueden quedar pendientes de la respuesta del cliente
 		pricingService.reviewAdditionalFindings(intervention);
-		return toResponse(intervention, actor);
 	}
 
 	// Corrige la cantidad: el stock se ajusta por la diferencia y el total se recalcula con el precio guardado del uso

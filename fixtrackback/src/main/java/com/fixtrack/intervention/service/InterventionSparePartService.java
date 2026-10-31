@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.fixtrack.infra.security.AuthenticatedUser;
 import com.fixtrack.intervention.dto.InterventionPartsResponse;
+import com.fixtrack.intervention.dto.NewPartUsageRequest;
 import com.fixtrack.intervention.dto.SparePartUsageRequest;
 import com.fixtrack.intervention.dto.UpdateSparePartUsageRequest;
 import com.fixtrack.intervention.entity.Intervention;
@@ -20,6 +21,9 @@ public interface InterventionSparePartService {
 			AuthenticatedUser actor);
 
 	InterventionPartsResponse register(Long interventionId, SparePartUsageRequest request, AuthenticatedUser actor);
+
+	// Repuesto que el técnico consiguió por fuera: lo crea en el inventario, le da entrada y lo usa en la orden
+	InterventionPartsResponse registerNewPart(Long interventionId, NewPartUsageRequest request, AuthenticatedUser actor);
 
 	InterventionPartsResponse correctQuantity(Long interventionId, Long usageId, UpdateSparePartUsageRequest request,
 			AuthenticatedUser actor);

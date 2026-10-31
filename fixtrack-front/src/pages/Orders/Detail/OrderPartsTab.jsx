@@ -12,10 +12,14 @@ import { getErrorMessage } from '../../../utils/errors'
 import { formatCurrency } from '../../../utils/format'
 import { QUALITY_LABELS, ROLES } from '../../../utils/labels'
 import { canEditUsedParts, canWorkOnRepair } from '../../../utils/permissions'
+import NewSparePartForm from './NewSparePartForm'
 import OrderLaborForm from './OrderLaborForm'
 import OrderPartRequests from './OrderPartRequests'
 import UsageQuantityModal from './UsageQuantityModal'
 import './OrderPartsTab.css'
+
+// Valor de la opción «Otro» de la lista: despliega el formulario para agregar el repuesto al inventario
+const OTHER_PART = 'other'
 
 function candidateLabel(part) {
   const quality = part.quality ? ` · ${QUALITY_LABELS[part.quality]}` : ''
@@ -36,6 +40,9 @@ export default function OrderPartsTab({ order, onUpdated }) {
   const [saving, setSaving] = useState(false)
   const [toRemove, setToRemove] = useState(null)
   const [toCorrect, setToCorrect] = useState(null)
+  // Cambia al crear un repuesto nuevo para que la lista de solicitudes se vuelva a cargar
+  const [requestsVersion, setRequestsVersion] = useState(0)
+  const addingNew = sparePartId === OTHER_PART
 
   const parts = useRemoteData(() => interventionService.listUsedParts(order.id), [order.id])
   const partTypes = useRemoteData(catalogService.listPartTypes, [])
@@ -47,7 +54,7 @@ export default function OrderPartsTab({ order, onUpdated }) {
 
   async function handleAdd(event) {
     event.preventDefault()
-    if (!sparePartId) {
+    if (!sparePartId || addingNew) {
       showError('Elija el repuesto.')
       return
     }
@@ -152,19 +159,37 @@ export default function OrderPartsTab({ order, onUpdated }) {
               <select {...props} className="form-input" value={sparePartId} disabled={candidates.loading} onChange={(event) => setSparePartId(event.target.value)}>
                 <option value="">{candidates.loading ? 'Cargando…' : (candidates.data?.length ? 'Elija el repuesto' : 'No hay repuestos con esos filtros')}</option>
                 {(candidates.data ?? []).map((part) => <option key={part.id} value={part.id}>{candidateLabel(part)}</option>)}
+                {!candidates.loading && <option value={OTHER_PART}>Otro: no está en el inventario…</option>}
               </select>
             )}
           </FormField>
-          <div className="order-parts__add">
-            <FormField id="parts-quantity" label="Cantidad">
-              {(props) => <input {...props} className="form-input" inputMode="numeric" value={quantity} onChange={(event) => setQuantity(event.target.value.replace(/\D/g, ''))} />}
-            </FormField>
-            <button type="submit" className="btn btn--primary" disabled={saving}>
-              <MdAdd aria-hidden="true" />
-              {saving ? 'Registrando…' : 'Agregar'}
-            </button>
-          </div>
+          {!addingNew && (
+            <div className="order-parts__add">
+              <FormField id="parts-quantity" label="Cantidad">
+                {(props) => <input {...props} className="form-input" inputMode="numeric" value={quantity} onChange={(event) => setQuantity(event.target.value.replace(/\D/g, ''))} />}
+              </FormField>
+              <button type="submit" className="btn btn--primary" disabled={saving}>
+                <MdAdd aria-hidden="true" />
+                {saving ? 'Registrando…' : 'Agregar'}
+              </button>
+            </div>
+          )}
         </form>
+      )}
+      {canEdit && addingNew && (
+        <NewSparePartForm
+          order={order}
+          partTypes={partTypes.data ?? []}
+          initialPartTypeId={partTypeId}
+          onCancel={() => setSparePartId('')}
+          onCreated={() => {
+            setSparePartId('')
+            setRequestsVersion((current) => current + 1)
+            parts.reload()
+            candidates.reload()
+            onUpdated()
+          }}
+        />
       )}
 
       <section className="order-parts__used" aria-labelledby="order-parts-used">
@@ -209,6 +234,7 @@ export default function OrderPartsTab({ order, onUpdated }) {
       </section>
 
       <OrderPartRequests
+        key={requestsVersion}
         order={order}
         canRequest={canWorkOnRepair(order, user)}
         onRequested={() => {

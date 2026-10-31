@@ -49,6 +49,7 @@ import com.fixtrack.inventory.repository.SparePartRepository;
 import com.fixtrack.inventory.repository.SupplierRepository;
 import com.fixtrack.inventory.repository.SupplierSparePartRepository;
 import com.fixtrack.inventory.service.PartRequestService;
+import com.fixtrack.inventory.service.SparePartService;
 import com.fixtrack.inventory.service.StockService;
 import com.fixtrack.person.entity.Person;
 import com.fixtrack.person.entity.Role;
@@ -75,6 +76,7 @@ public class PartRequestServiceImpl implements PartRequestService {
 	private final InterventionService interventionService;
 	private final InterventionSparePartService interventionSparePartService;
 	private final StockService stockService;
+	private final SparePartService sparePartService;
 	private final PersonService personService;
 	private final PartRequestMapper partRequestMapper;
 	private final Clock clock;
@@ -92,10 +94,18 @@ public class PartRequestServiceImpl implements PartRequestService {
 			throw new ConflictException("La orden " + code + " debe estar en diagnóstico, esperando repuestos o en reparación");
 		}
 
-		// 1. Del catálogo (solo si no alcanza el stock) o descrito a mano
+		// 1. Del catálogo (solo si no alcanza el stock), nuevo para el inventario o descrito a mano
 		SparePart part = null;
 		String description = blankToNull(request.description());
-		if (request.sparePartId() != null) {
+		if (request.newPart() != null) {
+			if (request.sparePartId() != null) {
+				throw new BusinessRuleException("Elija un repuesto del catálogo o agregue uno nuevo, no ambos");
+			}
+			part = sparePartService.createForRequest(request.newPart(), intervention.getDevice().getDeviceModel().getId());
+			if (description == null) {
+				description = part.getName();
+			}
+		} else if (request.sparePartId() != null) {
 			part = findActivePart(request.sparePartId());
 			if (part.getStock() >= request.quantity()) {
 				throw new ConflictException("Hay " + part.getStock() + " de " + part.getName()
@@ -116,7 +126,8 @@ public class PartRequestServiceImpl implements PartRequestService {
 				.sparePart(part)
 				.description(description)
 				.quantity(request.quantity())
-				.estimatedCost(money(request.estimatedCost()))
+				.estimatedCost(money(request.estimatedCost() != null || request.newPart() == null
+						? request.estimatedCost() : request.newPart().costPrice()))
 				.build());
 		interventionService.markWaitingParts(intervention, technician,
 				"Solicitud de repuesto #" + saved.getId() + ": " + description + " × " + saved.getQuantity());

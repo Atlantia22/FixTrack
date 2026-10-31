@@ -19,11 +19,14 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.fixtrack.common.BusinessRuleException;
 import com.fixtrack.common.ConflictException;
+import com.fixtrack.device.entity.Device;
+import com.fixtrack.device.entity.DeviceModel;
 import com.fixtrack.infra.security.AuthenticatedUser;
 import com.fixtrack.intervention.entity.Intervention;
 import com.fixtrack.intervention.entity.InterventionStatus;
@@ -31,8 +34,10 @@ import com.fixtrack.intervention.service.InterventionPricingService;
 import com.fixtrack.intervention.service.InterventionService;
 import com.fixtrack.intervention.service.InterventionSparePartService;
 import com.fixtrack.inventory.dto.CreatePartRequestRequest;
+import com.fixtrack.inventory.dto.NewSparePartRequest;
 import com.fixtrack.inventory.dto.PartReceiptResponse;
 import com.fixtrack.inventory.dto.ReceivePartRequestRequest;
+import com.fixtrack.inventory.entity.PartQuality;
 import com.fixtrack.inventory.entity.PartRequest;
 import com.fixtrack.inventory.entity.PartRequestStatus;
 import com.fixtrack.inventory.entity.SparePart;
@@ -44,6 +49,7 @@ import com.fixtrack.inventory.repository.PartRequestRepository;
 import com.fixtrack.inventory.repository.SparePartRepository;
 import com.fixtrack.inventory.repository.SupplierRepository;
 import com.fixtrack.inventory.repository.SupplierSparePartRepository;
+import com.fixtrack.inventory.service.SparePartService;
 import com.fixtrack.inventory.service.StockService;
 import com.fixtrack.person.entity.Person;
 import com.fixtrack.person.entity.Role;
@@ -82,6 +88,9 @@ class PartRequestServiceImplTest {
 	private StockService stockService;
 
 	@Mock
+	private SparePartService sparePartService;
+
+	@Mock
 	private PersonService personService;
 
 	private PartRequestServiceImpl service;
@@ -92,7 +101,7 @@ class PartRequestServiceImplTest {
 	void setUp() {
 		service = new PartRequestServiceImpl(partRequestRepository, sparePartRepository, supplierRepository,
 				supplierSparePartRepository, interventionLookup, interventionService, interventionSparePartService,
-				stockService, personService, new PartRequestMapper(),
+				stockService, sparePartService, personService, new PartRequestMapper(),
 				Clock.fixed(Instant.parse("2026-10-27T15:00:00Z"), ZoneId.of("America/Bogota")));
 		intervention = Intervention.builder().id(18L).status(InterventionStatus.IN_REPAIR)
 				.technician(Person.builder().id(5L).fullName("Tito").build()).build();
@@ -104,7 +113,7 @@ class PartRequestServiceImplTest {
 		given(interventionLookup.getEntity(18L)).willReturn(intervention);
 		given(sparePartRepository.findByIdAndActiveTrue(4L)).willReturn(Optional.of(part));
 
-		assertThatThrownBy(() -> service.create(18L, new CreatePartRequestRequest(4L, null, 1, null), TECHNICIAN))
+		assertThatThrownBy(() -> service.create(18L, new CreatePartRequestRequest(4L, null, 1, null, null), TECHNICIAN))
 				.isInstanceOf(ConflictException.class)
 				.hasMessageContaining("regístrelo como repuesto usado");
 		verify(partRequestRepository, never()).save(any());
@@ -114,7 +123,7 @@ class PartRequestServiceImplTest {
 	void shouldRequireCatalogPartOrDescription() {
 		given(interventionLookup.getEntity(18L)).willReturn(intervention);
 
-		assertThatThrownBy(() -> service.create(18L, new CreatePartRequestRequest(null, " ", 1, null), TECHNICIAN))
+		assertThatThrownBy(() -> service.create(18L, new CreatePartRequestRequest(null, " ", 1, null, null), TECHNICIAN))
 				.isInstanceOf(BusinessRuleException.class);
 	}
 
@@ -125,9 +134,42 @@ class PartRequestServiceImplTest {
 		given(personService.getEntity(5L)).willReturn(technician);
 		given(partRequestRepository.save(any(PartRequest.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-		service.create(18L, new CreatePartRequestRequest(null, "Flex de carga Moto G32", 2, null), TECHNICIAN);
+		service.create(18L, new CreatePartRequestRequest(null, "Flex de carga Moto G32", 2, null, null), TECHNICIAN);
 
 		verify(interventionService).markWaitingParts(eq(intervention), eq(technician), anyString());
+	}
+
+	@Test
+	void shouldAddNewPartToInventoryAndRequestItWhenNotInCatalog() {
+		DeviceModel model = DeviceModel.builder().id(29L).name("Galaxy A15").build();
+		intervention.setDevice(Device.builder().id(7L).deviceModel(model).build());
+		NewSparePartRequest newPart = new NewSparePartRequest(3L, "Flex de botones Galaxy A15", PartQuality.GENERIC,
+				new BigDecimal("15000"), new BigDecimal("45000"));
+		SparePart created = SparePart.builder().id(40L).name("Flex de botones Galaxy A15").sku("FLE-GALAXYA15-GEN")
+				.stock(0).build();
+		given(interventionLookup.getEntity(18L)).willReturn(intervention);
+		given(sparePartService.createForRequest(newPart, 29L)).willReturn(created);
+		given(personService.getEntity(5L)).willReturn(Person.builder().id(5L).fullName("Tito").build());
+		given(partRequestRepository.save(any(PartRequest.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+		service.create(18L, new CreatePartRequestRequest(null, null, 1, null, newPart), TECHNICIAN);
+
+		ArgumentCaptor<PartRequest> saved = ArgumentCaptor.forClass(PartRequest.class);
+		verify(partRequestRepository).save(saved.capture());
+		assertThat(saved.getValue().getSparePart()).isSameAs(created);
+		assertThat(saved.getValue().getDescription()).isEqualTo("Flex de botones Galaxy A15");
+		assertThat(saved.getValue().getEstimatedCost()).isEqualByComparingTo("15000");
+		verify(interventionService).markWaitingParts(eq(intervention), any(Person.class), anyString());
+	}
+
+	@Test
+	void shouldRejectCatalogPartTogetherWithNewPart() {
+		given(interventionLookup.getEntity(18L)).willReturn(intervention);
+		NewSparePartRequest newPart = new NewSparePartRequest(3L, "Flex", null, BigDecimal.ONE, BigDecimal.TEN);
+
+		assertThatThrownBy(() -> service.create(18L, new CreatePartRequestRequest(4L, null, 1, null, newPart), TECHNICIAN))
+				.isInstanceOf(BusinessRuleException.class);
+		verify(sparePartService, never()).createForRequest(any(), any());
 	}
 
 	@Test

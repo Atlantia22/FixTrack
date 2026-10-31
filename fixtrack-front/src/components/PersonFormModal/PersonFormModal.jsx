@@ -3,13 +3,13 @@ import FormField from '../FormField/FormField'
 import Modal from '../Modal/Modal'
 import { useToast } from '../../hooks/useToast'
 import * as personService from '../../services/personService'
+import { cleanDocumentNumber, documentNumberError, documentNumberHint, DOCUMENT_RULES } from '../../utils/document'
 import { getErrorMessage, getFieldErrors } from '../../utils/errors'
 import { DOCUMENT_TYPE_LABELS, ROLE_LABELS, ROLES, toOptions } from '../../utils/labels'
 import './PersonFormModal.css'
 
 const PHONE_PATTERN = /^\d{7,10}$/
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const DOCUMENT_PATTERN = /^[A-Za-z0-9]+$/
 // Roles del módulo Personal; los clientes se editan en Clientes y equipos con el rol fijo
 const STAFF_ROLE_OPTIONS = toOptions(ROLE_LABELS).filter(({ value }) => value !== ROLES.CUSTOMER)
 
@@ -32,10 +32,9 @@ function initialForm(person, fixedRole) {
 function validate(form, isNew) {
   const errors = {}
   const customer = form.role === ROLES.CUSTOMER
-  if (!form.documentNumber.trim()) {
-    errors.documentNumber = 'Escriba el número de documento.'
-  } else if (!DOCUMENT_PATTERN.test(form.documentNumber.trim())) {
-    errors.documentNumber = 'Solo puede tener letras y números.'
+  const documentError = documentNumberError(form.documentType, form.documentNumber.trim())
+  if (documentError) {
+    errors.documentNumber = documentError
   }
   if (!form.fullName.trim()) {
     errors.fullName = 'Escriba el nombre completo.'
@@ -93,8 +92,13 @@ export default function PersonFormModal({ person, specialties = [], fixedRole, o
 
   // Al editar un campo se borra su error; las marcas «No tiene» borran el del dato que reemplazan
   function update(field, value) {
-    setForm((current) => ({ ...current, [field]: value }))
-    const errorField = { noPhone: 'phone', noEmail: 'email' }[field] ?? field
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+      // Al cambiar el tipo, el número se ajusta a lo que el nuevo tipo admite
+      ...(field === 'documentType' ? { documentNumber: cleanDocumentNumber(value, current.documentNumber) } : {}),
+    }))
+    const errorField = { noPhone: 'phone', noEmail: 'email', documentType: 'documentNumber' }[field] ?? field
     setErrors((current) => (current[errorField] ? { ...current, [errorField]: undefined } : current))
   }
 
@@ -151,9 +155,17 @@ export default function PersonFormModal({ person, specialties = [], fixedRole, o
             </select>
           )}
         </FormField>
-        <FormField id={`${formId}-documentNumber`} label="Número de documento" error={errors.documentNumber} required>
+        <FormField id={`${formId}-documentNumber`} label="Número de documento" error={errors.documentNumber} hint={documentNumberHint(form.documentType)} required>
           {(props) => (
-            <input {...props} className="form-input" maxLength={20} autoComplete="off" value={form.documentNumber} onChange={(event) => update('documentNumber', event.target.value)} />
+            <input
+              {...props}
+              className="form-input"
+              inputMode={DOCUMENT_RULES[form.documentType].numeric ? 'numeric' : 'text'}
+              maxLength={DOCUMENT_RULES[form.documentType].max}
+              autoComplete="off"
+              value={form.documentNumber}
+              onChange={(event) => update('documentNumber', cleanDocumentNumber(form.documentType, event.target.value))}
+            />
           )}
         </FormField>
         <FormField id={`${formId}-fullName`} label="Nombre completo" error={errors.fullName} required className="form-grid__full">

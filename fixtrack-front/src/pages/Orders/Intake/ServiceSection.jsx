@@ -1,26 +1,20 @@
 import FormField from '../../../components/FormField/FormField'
-import PasswordInput from '../../../components/PasswordInput/PasswordInput'
-import { AVAILABILITY_LABELS, SERVICE_TYPE_LABELS, toOptions } from '../../../utils/labels'
+import UnlockCodeField from '../../../components/UnlockCodeField/UnlockCodeField'
+import { AVAILABILITY_LABELS } from '../../../utils/labels'
+import DamagePicker from './DamagePicker'
 import './ServiceSection.css'
 
-// Sección del servicio: estado físico, desbloqueo, servicio inicial, problema, técnico, presupuesto y entrega
+// Sección del servicio: daños reportados, desbloqueo, problema, estado físico, técnico, presupuesto y entrega
 export default function ServiceSection({ value, errors, technicians, minDate, onChange }) {
   return (
     <fieldset className="intake-section">
       <legend className="intake-section__title">3. Servicio</legend>
       <div className="form-grid">
-        <FormField id="intake-service-type" label="Servicio inicial" error={errors.serviceType} required>
-          {(props) => (
-            <select {...props} className="form-input" value={value.serviceType} onChange={(event) => onChange('serviceType', event.target.value)}>
-              <option value="">Elija el servicio</option>
-              {toOptions(SERVICE_TYPE_LABELS).map(({ value: option, label }) => <option key={option} value={option}>{label}</option>)}
-            </select>
-          )}
+        <FormField id="intake-service-types" label="Daños reportados" error={errors.serviceTypes} hint="Agregue todos los que reporte el cliente." required>
+          {(props) => <DamagePicker {...props} value={value.serviceTypes} onChange={(serviceTypes) => onChange('serviceTypes', serviceTypes)} />}
         </FormField>
         <FormField id="intake-unlock" label="Contraseña o patrón de desbloqueo" hint="Opcional. Se guarda cifrada y se borra al entregar.">
-          {(props) => (
-            <PasswordInput {...props} maxLength={100} autoComplete="off" value={value.unlockCode} onChange={(event) => onChange('unlockCode', event.target.value)} />
-          )}
+          {(props) => <UnlockCodeField {...props} value={value.unlockCode} onChange={(unlockCode) => onChange('unlockCode', unlockCode)} />}
         </FormField>
         <FormField id="intake-problem" label="Descripción del problema" error={errors.problemDescription} required className="form-grid__full">
           {(props) => <textarea {...props} className="form-input" maxLength={1000} value={value.problemDescription} onChange={(event) => onChange('problemDescription', event.target.value)} />}

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fixtrack.infra.security.CurrentUserProvider;
 import com.fixtrack.intervention.dto.InterventionPartsResponse;
+import com.fixtrack.intervention.dto.NewPartUsageRequest;
 import com.fixtrack.intervention.dto.SparePartUsageRequest;
 import com.fixtrack.intervention.dto.UpdateSparePartUsageRequest;
 import com.fixtrack.intervention.service.InterventionSparePartService;
@@ -53,6 +54,14 @@ public class InterventionSparePartController {
 	public InterventionPartsResponse register(@PathVariable Long interventionId,
 			@Valid @RequestBody SparePartUsageRequest request) {
 		return interventionSparePartService.register(interventionId, request, currentUserProvider.require());
+	}
+
+	@PostMapping("/new-part")
+	@PreAuthorize("hasRole('TECHNICIAN')")
+	@ResponseStatus(HttpStatus.CREATED)
+	public InterventionPartsResponse registerNewPart(@PathVariable Long interventionId,
+			@Valid @RequestBody NewPartUsageRequest request) {
+		return interventionSparePartService.registerNewPart(interventionId, request, currentUserProvider.require());
 	}
 
 	@PatchMapping("/{usageId}")

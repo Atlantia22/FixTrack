@@ -26,6 +26,9 @@ public interface SparePartRepository extends JpaRepository<SparePart, Long> {
 	// Con calidad null genera IS NULL, así detecta duplicados sin calidad que MySQL no bloquea
 	boolean existsByPartTypeIdAndDeviceModelIdAndQuality(Long partTypeId, Long deviceModelId, PartQuality quality);
 
+	Optional<SparePart> findFirstByPartTypeIdAndDeviceModelIdAndQuality(Long partTypeId, Long deviceModelId,
+			PartQuality quality);
+
 	boolean existsByPartTypeIdAndDeviceModelIdAndQualityAndIdNot(Long partTypeId, Long deviceModelId,
 			PartQuality quality, Long id);
 

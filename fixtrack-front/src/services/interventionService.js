@@ -155,6 +155,12 @@ export async function addUsedPart(id, { sparePartId, quantity }) {
   return response.data
 }
 
+// Repuesto que el técnico consiguió por fuera: se crea en el inventario con lo conseguido y se usa en la orden
+export async function addNewPart(id, { part, quantityObtained, quantityUsed }) {
+  const response = await API_CONFIG.post(`/interventions/${id}/spare-parts/new-part`, { part, quantityObtained, quantityUsed })
+  return response.data
+}
+
 export async function removeUsedPart(id, usageId) {
   const response = await API_CONFIG.delete(`/interventions/${id}/spare-parts/${usageId}`)
   return response.data

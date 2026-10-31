@@ -251,3 +251,13 @@
     transform: rotate(360deg);
   }
 }
+
+/* Marco del PDF que se imprime (utils/files.js): sin tamaño pero cargado; con display: none el navegador no imprime */
+.print-frame {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border: 0;
+}

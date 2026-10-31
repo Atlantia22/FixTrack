@@ -1,0 +1,77 @@
+/* Tablero cuadrado: las líneas del trazo van debajo y los puntos encima */
+.pattern-lock {
+  position: relative;
+  width: 100%;
+  max-width: 13rem;
+  aspect-ratio: 1;
+  border: 0.0625rem solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface-muted);
+  touch-action: none;
+  user-select: none;
+}
+
+.pattern-lock--readonly {
+  max-width: 8rem;
+}
+
+.pattern-lock__lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.pattern-lock__lines line {
+  stroke: var(--color-primary);
+  stroke-width: 0.08;
+  stroke-linecap: round;
+}
+
+.pattern-lock__grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  width: 100%;
+  height: 100%;
+}
+
+.pattern-lock__point {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  place-self: center;
+  width: 32%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0.125rem solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background-color: var(--color-surface);
+  color: var(--color-text-inverse);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+}
+
+button.pattern-lock__point {
+  cursor: pointer;
+}
+
+.pattern-lock__point--on {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+}
+
+/* El punto de inicio se distingue con un anillo, no solo con el color */
+.pattern-lock__point--start {
+  box-shadow: 0 0 0 0.25rem var(--color-primary-soft);
+}
+
+.pattern-lock--readonly .pattern-lock__point {
+  border-width: 0.0625rem;
+}
+
+:root[data-contrast='high'] .pattern-lock__point--on {
+  outline: 0.125rem solid var(--color-text);
+}

@@ -2,10 +2,12 @@ package com.fixtrack.inventory.service.impl;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -26,6 +28,7 @@ import com.fixtrack.device.entity.DeviceModel;
 import com.fixtrack.device.service.DeviceModelService;
 import com.fixtrack.infra.security.AuthenticatedUser;
 import com.fixtrack.inventory.dto.CreateSparePartRequest;
+import com.fixtrack.inventory.dto.NewSparePartRequest;
 import com.fixtrack.inventory.dto.SparePartCandidateResponse;
 import com.fixtrack.inventory.dto.SparePartFilter;
 import com.fixtrack.inventory.dto.SparePartResponse;
@@ -156,6 +159,30 @@ public class SparePartServiceImpl implements SparePartService {
 		return sparePartMapper.toResponse(sparePartRepository.save(part));
 	}
 
+	// Repuesto nuevo pedido desde una orden: si ya existe la combinación tipo-modelo-calidad se elige ese, no se duplica
+	@Override
+	@Transactional
+	public SparePart createForRequest(NewSparePartRequest request, Long deviceModelId) {
+		PartType partType = findPartType(request.partTypeId());
+		DeviceModel deviceModel = deviceModelService.getEntity(deviceModelId);
+		sparePartRepository.findFirstByPartTypeIdAndDeviceModelIdAndQuality(partType.getId(), deviceModel.getId(),
+				request.quality()).ifPresent(existing -> {
+					throw new ConflictException("Ya existe «" + existing.getName() + "» (" + existing.getSku()
+							+ ") en el inventario; elíjalo de la lista de repuestos");
+				});
+
+		return sparePartRepository.save(SparePart.builder()
+				.name(request.name().trim())
+				.sku(generateSku(partType, deviceModel, request.quality()))
+				.partType(partType)
+				.deviceModel(deviceModel)
+				.quality(request.quality())
+				.minStock(settingService.getIntValue(SettingKey.DEFAULT_MIN_STOCK))
+				.costPrice(money(request.costPrice()))
+				.salePrice(money(request.salePrice()))
+				.build());
+	}
+
 	// Edición parcial: solo cambia lo que llega; vuelve a validar SKU y la combinación tipo-modelo-calidad
 	@Override
 	@Transactional
@@ -264,6 +291,24 @@ public class SparePartServiceImpl implements SparePartService {
 	private PartType findPartType(Long partTypeId) {
 		return partTypeRepository.findById(partTypeId)
 				.orElseThrow(() -> new NotFoundException("No existe el tipo de repuesto con id " + partTypeId));
+	}
+
+	// SKU con el formato del inventario: tipo, modelo y calidad («PAN-GALAXYA15-GEN»); si ya existe se numera
+	private String generateSku(PartType partType, DeviceModel deviceModel, PartQuality quality) {
+		String base = skuToken(partType.getName(), 3) + "-" + skuToken(deviceModel.getName(), 14)
+				+ (quality == null ? "" : "-" + quality.name().substring(0, 3));
+		String sku = base;
+		for (int copy = 2; sparePartRepository.existsBySku(sku); copy++) {
+			sku = base + "-" + copy;
+		}
+		return sku;
+	}
+
+	// Solo letras y números en mayúscula, sin tildes, recortado a maxLength
+	private String skuToken(String text, int maxLength) {
+		String token = Normalizer.normalize(text, Normalizer.Form.NFD).replaceAll("[^A-Za-z0-9]", "")
+				.toUpperCase(Locale.ROOT);
+		return token.substring(0, Math.min(maxLength, token.length()));
 	}
 
 	private ConflictException duplicateSku(String sku) {

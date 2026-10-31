@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import com.fixtrack.common.PageResponse;
 import com.fixtrack.infra.security.AuthenticatedUser;
 import com.fixtrack.inventory.dto.CreateSparePartRequest;
+import com.fixtrack.inventory.dto.NewSparePartRequest;
 import com.fixtrack.inventory.dto.SparePartCandidateResponse;
 import com.fixtrack.inventory.dto.SparePartFilter;
 import com.fixtrack.inventory.dto.report.InventoryReport;
@@ -14,6 +15,7 @@ import com.fixtrack.inventory.dto.SparePartResponse;
 import com.fixtrack.inventory.dto.StockEntryRequest;
 import com.fixtrack.inventory.dto.StockEntryResponse;
 import com.fixtrack.inventory.dto.UpdateSparePartRequest;
+import com.fixtrack.inventory.entity.SparePart;
 
 public interface SparePartService {
 
@@ -27,6 +29,9 @@ public interface SparePartService {
 	SparePartResponse findById(Long id);
 
 	SparePartResponse create(CreateSparePartRequest request);
+
+	// Repuesto que el técnico agrega al inventario desde una orden: sin stock y con SKU generado
+	SparePart createForRequest(NewSparePartRequest request, Long deviceModelId);
 
 	SparePartResponse update(Long id, UpdateSparePartRequest request);
 

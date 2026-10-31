@@ -5,9 +5,9 @@ function clean(params) {
   return Object.fromEntries(Object.entries(params).filter(([, value]) => value !== '' && value != null && value !== false))
 }
 
-// El técnico asignado solicita un repuesto del catálogo (sparePartId) o descrito a mano (description)
-export async function createPartRequest(interventionId, { sparePartId, description, quantity, estimatedCost }) {
-  const response = await API_CONFIG.post(`/interventions/${interventionId}/part-requests`, { sparePartId, description, quantity, estimatedCost })
+// El técnico asignado solicita un repuesto del catálogo (sparePartId), uno nuevo para el inventario (newPart) o descrito a mano
+export async function createPartRequest(interventionId, { sparePartId, description, quantity, estimatedCost, newPart = null }) {
+  const response = await API_CONFIG.post(`/interventions/${interventionId}/part-requests`, { sparePartId, description, quantity, estimatedCost, newPart })
   return response.data
 }
 

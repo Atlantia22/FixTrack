@@ -1,0 +1,32 @@
+.unlock-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.unlock-field__modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.unlock-field__modes label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.unlock-field__pattern {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.unlock-field__summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}

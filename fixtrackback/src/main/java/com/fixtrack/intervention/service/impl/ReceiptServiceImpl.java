@@ -113,10 +113,11 @@ public class ReceiptServiceImpl implements ReceiptService {
 				.filter(payment -> payment.type() == PaymentType.DEPOSIT)
 				.map(PaymentResponse::amount)
 				.reduce(BigDecimal.ZERO, BigDecimal::add);
-		InterventionFinding initial = findingRepository.findByInterventionIdOrderByCreatedAtAscIdAsc(id).stream()
+		// Daños reportados al recibir, en el orden en que se registraron
+		List<String> initialServices = findingRepository.findByInterventionIdOrderByCreatedAtAscIdAsc(id).stream()
 				.filter(finding -> finding.getOrigin() == FindingOrigin.INITIAL)
-				.findFirst()
-				.orElse(null);
+				.map(finding -> ReceiptLabels.SERVICE_TYPES.get(finding.getServiceType()))
+				.toList();
 
 		byte[] pdf = render(document -> {
 			header(document, "Comprobante de ingreso", code, intervention.getReceivedAt());
@@ -159,7 +160,7 @@ public class ReceiptServiceImpl implements ReceiptService {
 
 			section(document, "Servicio");
 			document.add(rows(
-					"Servicio inicial", initial == null ? "—" : ReceiptLabels.SERVICE_TYPES.get(initial.getServiceType()),
+					"Daños reportados", initialServices.isEmpty() ? "—" : String.join(", ", initialServices),
 					"Problema reportado", intervention.getProblemDescription(),
 					"Presupuesto inicial", money(intervention.getEstimatedPrice()),
 					"Fecha estimada de entrega", formatDate(intervention.getEstimatedDeliveryDate()),

@@ -5,7 +5,7 @@ import FormField from '../../../components/FormField/FormField'
 import { useToast } from '../../../hooks/useToast'
 import * as interventionService from '../../../services/interventionService'
 import { getErrorMessage } from '../../../utils/errors'
-import { downloadFile, openPdf } from '../../../utils/files'
+import { downloadFile, printPdf } from '../../../utils/files'
 import { formatCurrency } from '../../../utils/format'
 import { isOpen } from '../../../utils/permissions'
 import './OrderFrontDeskActions.css'
@@ -19,11 +19,12 @@ export default function OrderFrontDeskActions({ order, onUpdated }) {
   const [reason, setReason] = useState('')
   const [newKey, setNewKey] = useState(null)
   const [downloading, setDownloading] = useState(false)
+  const [printingDelivery, setPrintingDelivery] = useState(false)
 
-  // La pestaña del PDF se abre en el mismo clic; la clave nueva se genera y se imprime en el comprobante
+  // La clave nueva se genera, se imprime en el comprobante y se abre el diálogo de impresión
   async function handleReprint() {
     try {
-      await openPdf(async () => {
+      await printPdf(async () => {
         const { accessKey } = await interventionService.regenerateAccessKey(order.id)
         setNewKey(accessKey)
         return interventionService.getIntakeReceipt(order.id, accessKey)
@@ -60,6 +61,17 @@ export default function OrderFrontDeskActions({ order, onUpdated }) {
     }
   }
 
+  async function handlePrintDelivery() {
+    setPrintingDelivery(true)
+    try {
+      await printPdf(() => interventionService.getDeliveryReceipt(order.id))
+    } catch (requestError) {
+      showError(getErrorMessage(requestError))
+    } finally {
+      setPrintingDelivery(false)
+    }
+  }
+
   return (
     <section className="order-actions" aria-labelledby="order-actions-title">
       <h3 id="order-actions-title" className="order-info__title">Comprobantes y cancelación</h3>
@@ -68,6 +80,12 @@ export default function OrderFrontDeskActions({ order, onUpdated }) {
           <button type="button" className="btn btn--secondary" onClick={() => setConfirmReprint(true)}>
             <MdPrint aria-hidden="true" />
             Reimprimir comprobante de ingreso
+          </button>
+        )}
+        {order.status === 'DELIVERED' && (
+          <button type="button" className="btn btn--secondary" disabled={printingDelivery} onClick={handlePrintDelivery}>
+            <MdPrint aria-hidden="true" />
+            {printingDelivery ? 'Preparando…' : 'Imprimir comprobante de entrega'}
           </button>
         )}
         {order.status === 'DELIVERED' && (

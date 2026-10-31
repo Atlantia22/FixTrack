@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MdCheckCircle, MdPrint, MdWarningAmber } from 'react-icons/md'
+import { MdCheckCircle, MdPictureAsPdf, MdWarningAmber } from 'react-icons/md'
 import { useToast } from '../../../hooks/useToast'
 import * as interventionService from '../../../services/interventionService'
 import { getErrorMessage } from '../../../utils/errors'
@@ -8,20 +8,20 @@ import { formatCurrency, formatDate } from '../../../utils/format'
 import { PAYMENT_METHOD_LABELS } from '../../../utils/labels'
 import './IntakeResult.css'
 
-// Datos para el comprobante: código y clave de consulta (la clave solo se muestra aquí, una vez), abono e impresión
+// Datos para el comprobante: código y clave de consulta (la clave solo se muestra aquí, una vez) y abono; se imprime desde el pie del modal
 export default function IntakeResult({ result }) {
   const { intervention, accessKey, receiptWarning, deposit } = result
   const { showError } = useToast()
-  const [printing, setPrinting] = useState(false)
+  const [opening, setOpening] = useState(false)
 
-  async function handlePrint() {
-    setPrinting(true)
+  async function handleView() {
+    setOpening(true)
     try {
       await openPdf(() => interventionService.getIntakeReceipt(intervention.id, accessKey))
     } catch (requestError) {
       showError(getErrorMessage(requestError))
     } finally {
-      setPrinting(false)
+      setOpening(false)
     }
   }
 
@@ -42,12 +42,12 @@ export default function IntakeResult({ result }) {
         </div>
       </div>
       <div className="intake-result__print">
-        <button type="button" className="btn btn--primary" disabled={printing} onClick={handlePrint}>
-          <MdPrint aria-hidden="true" />
-          {printing ? 'Preparando…' : 'Imprimir comprobante de ingreso'}
+        <button type="button" className="btn btn--secondary" disabled={opening} onClick={handleView}>
+          <MdPictureAsPdf aria-hidden="true" />
+          {opening ? 'Abriendo…' : 'Ver PDF'}
         </button>
         <p className="intake-result__hint">
-          El comprobante lleva el código y la clave. La clave no se vuelve a mostrar; si el cliente la pierde, reimprima el comprobante desde la orden y se generará una nueva.
+          Imprímalo con «Imprimir comprobante», abajo. Lleva el código y la clave. La clave no se vuelve a mostrar; si el cliente la pierde, reimprima el comprobante desde la orden y se generará una nueva.
         </p>
       </div>
       {receiptWarning && (

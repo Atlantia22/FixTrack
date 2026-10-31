@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import FormField from '../../../components/FormField/FormField'
 import Modal from '../../../components/Modal/Modal'
-import PasswordInput from '../../../components/PasswordInput/PasswordInput'
+import UnlockCodeField from '../../../components/UnlockCodeField/UnlockCodeField'
 import { useToast } from '../../../hooks/useToast'
 import * as interventionService from '../../../services/interventionService'
 import { getErrorMessage, getFieldErrors } from '../../../utils/errors'
@@ -142,7 +142,7 @@ export default function WarrantyModal({ order, technicians, onClose, onCreated }
               )}
             </FormField>
             <FormField id={`${formId}-unlock`} label="Contraseña o patrón de desbloqueo" hint="Opcional. Se guarda cifrada.">
-              {(props) => <PasswordInput {...props} maxLength={100} autoComplete="off" value={form.unlockCode} onChange={(event) => update('unlockCode', event.target.value)} />}
+              {(props) => <UnlockCodeField {...props} value={form.unlockCode} onChange={(unlockCode) => update('unlockCode', unlockCode)} />}
             </FormField>
             <FormField id={`${formId}-problem`} label="Problema reportado" error={errors.problemDescription} required className="form-grid__full">
               {(props) => <textarea {...props} className="form-input" maxLength={1000} value={form.problemDescription} onChange={(event) => update('problemDescription', event.target.value)} />}

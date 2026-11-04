@@ -1,0 +1,19 @@
+# Variables de entorno y secretos (en cualquier carpeta)
+.env
+.env.*
+!.env.example
+
+# Herramientas de IA: skills de terceros y ajustes personales (las reglas de .claude/rules sí se versionan)
+.agents/
+.claude/skills/
+.claude/settings.local.json
+skills-lock.json
+
+# Sistema operativo y editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+
+# Registros
+*.log

@@ -104,6 +104,7 @@ FixTrack/
 - El backend acepta CORS solo desde `http://localhost:5173`; por eso Vite usa ese puerto fijo.
 - Los contextos separan el `createContext` (`AuthContext.js`) del componente proveedor (`AuthProvider.jsx`) y el hook (`hooks/useAuth.js`), para que el recargado en caliente de Vite funcione.
 - Cada módulo nuevo agrega su servicio en `services/` y su página en el mapa `PAGES` de `AppRoutes.jsx`; los roles de la ruta salen de `menuConfig.js`.
+- Todas las páginas se importan con `lazy()` en `AppRoutes.jsx`: el login y el portal no descargan el código interno. El `Suspense` de `AppLayout` mantiene visible el menú lateral mientras carga cada pantalla.
 - Sesión: `sessionStorage` guarda `{ authorization, user }`, donde `authorization` es `Bearer <token>` del login y `apiConfig.js` la envía en cada petición. Cuando el token vence, o el usuario se desactiva o cambia de rol, el backend responde 401 y la sesión se cierra sola.
 - Al cerrar sesión a propósito (`endedByUser`), `ProtectedRoute` no guarda la página de origen: el siguiente usuario entra al Inicio. Si la sesión vence (`sessionExpired`), el login lo avisa y vuelve a esa página.
 - Las tarjetas del Inicio llevan al listado con filtros en la URL (`/ordenes?overdue=true`, `/inventario?alertas=1`). Las páginas toman esos filtros al montarse y en cada navegación (`location.key`), no al cambiar el texto de la URL; así escribir en los filtros nunca se pisa con una navegación en curso.

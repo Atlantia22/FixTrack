@@ -3,8 +3,8 @@ import { Link, useNavigate } from 'react-router'
 import FormField from '../../components/FormField/FormField'
 import PageHeader from '../../components/PageHeader/PageHeader'
 import PasswordInput from '../../components/PasswordInput/PasswordInput'
+import { useAuth } from '../../hooks/useAuth'
 import { useToast } from '../../hooks/useToast'
-import * as authService from '../../services/authService'
 import { getErrorMessage, getFieldErrors } from '../../utils/errors'
 import './ChangePasswordPage.css'
 
@@ -33,6 +33,7 @@ function backendErrors(error) {
 export default function ChangePasswordPage() {
   const navigate = useNavigate()
   const { showError, showSuccess } = useToast()
+  const { changePassword } = useAuth()
   const [form, setForm] = useState(EMPTY)
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
@@ -51,8 +52,8 @@ export default function ChangePasswordPage() {
     }
     setSaving(true)
     try {
-      await authService.changePassword({ currentPassword: form.currentPassword, newPassword: form.newPassword })
-      showSuccess('Su contraseña se cambió. Úsela la próxima vez que inicie sesión.')
+      await changePassword({ currentPassword: form.currentPassword, newPassword: form.newPassword })
+      showSuccess('Su contraseña se cambió. Las sesiones abiertas en otros equipos se cerraron.')
       navigate('/perfil')
     } catch (requestError) {
       setErrors(backendErrors(requestError))

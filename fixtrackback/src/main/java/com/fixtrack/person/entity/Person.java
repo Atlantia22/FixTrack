@@ -1,5 +1,6 @@
 package com.fixtrack.person.entity;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -57,6 +58,10 @@ public class Person {
 	// Hash bcrypt, solo para usuarios internos
 	@Column(name = "password", length = 100)
 	private String password;
+
+	// Último cambio de contraseña, al segundo: los tokens emitidos antes dejan de servir
+	@Column(name = "password_changed_at")
+	private Instant passwordChangedAt;
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "role", nullable = false, length = 20)

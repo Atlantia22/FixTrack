@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.fixtrack.common.BusinessRuleException;
 import com.fixtrack.common.ConflictException;
 import com.fixtrack.person.dto.CustomerContactRequest;
+import com.fixtrack.person.dto.CustomerRequest;
 import com.fixtrack.person.dto.PersonResponse;
 import com.fixtrack.person.entity.DocumentType;
 import com.fixtrack.person.entity.Person;
@@ -83,5 +84,31 @@ class PersonServiceImplTest {
 		assertThatThrownBy(() -> personService.updateCustomerContact(7L,
 				new CustomerContactRequest("3001234567", false, "Otro@Correo.co", false)))
 				.isInstanceOf(ConflictException.class);
+	}
+
+	@Test
+	void shouldRejectChangingEmailOfInternalUserFromIntake() {
+		Person technician = person(Role.TECHNICIAN);
+		given(personRepository.findByDocumentTypeAndDocumentNumber(DocumentType.CC, "43567890"))
+				.willReturn(Optional.of(technician));
+
+		assertThatThrownBy(() -> personService.registerOrUpdateCustomer(new CustomerRequest(DocumentType.CC,
+				"43567890", null, null, null, "personal@correo.co", null)))
+				.isInstanceOf(BusinessRuleException.class)
+				.hasMessageContaining("usuario interno");
+		assertThat(technician.getEmail()).isEqualTo("ana@correo.co");
+	}
+
+	@Test
+	void shouldKeepInternalUserWhenIntakeSendsSameEmail() {
+		Person technician = person(Role.TECHNICIAN);
+		given(personRepository.findByDocumentTypeAndDocumentNumber(DocumentType.CC, "43567890"))
+				.willReturn(Optional.of(technician));
+
+		Person result = personService.registerOrUpdateCustomer(new CustomerRequest(DocumentType.CC, "43567890", null,
+				"3109876543", null, "Ana@Correo.co", null));
+
+		assertThat(result.getEmail()).isEqualTo("ana@correo.co");
+		assertThat(result.getPhone()).isEqualTo("3109876543");
 	}
 }

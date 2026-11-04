@@ -1,5 +1,6 @@
 package com.fixtrack.infra.security;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 
@@ -11,7 +12,11 @@ import com.fixtrack.person.entity.Role;
 
 // Usuario interno autenticado que Spring Security guarda en el contexto de cada petición
 public record AuthenticatedUser(Long id, String fullName, String email, Role role, String passwordHash,
-		boolean enabled) implements UserDetails {
+		boolean enabled, Instant passwordChangedAt) implements UserDetails {
+
+	public AuthenticatedUser(Long id, String fullName, String email, Role role, String passwordHash, boolean enabled) {
+		this(id, fullName, email, role, passwordHash, enabled, null);
+	}
 
 	@Override
 	public Collection<? extends GrantedAuthority> getAuthorities() {

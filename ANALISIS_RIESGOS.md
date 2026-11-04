@@ -1,239 +1,135 @@
-# Informe Integral de Análisis de Riesgos y Seguridad — FixTrack
+# Análisis de seguridad — FixTrack
 
-**Fecha de emisión:** 31 de octubre de 2026  
-**Alcance:** Código fuente completo de Backend (`fixtrackback`), Frontend (`fixtrack-front`) y configuraciones de despliegue.
+**Fecha:** 3 de noviembre de 2026
+**Alcance:** backend `fixtrackback` (Spring Boot 4.1, Java 25), frontend `fixtrack-front` (React 19 + Vite) y su configuración.
+**Versión anterior:** 31 de octubre de 2026 (en el historial de git). Este documento la reemplaza: verifica cada hallazgo contra el código, descarta los que no aplicaban y agrega los encontrados en esta revisión.
 
 ---
 
-## 1. Resumen Ejecutivo
+## 1. Resumen
 
-El presente documento consolida la auditoría técnica de seguridad, arquitectura, resiliencia y operación del sistema **FixTrack**.
+| Estado | Cantidad |
+|---|---|
+| Corregidos en esta revisión | 10 |
+| Aceptados o pendientes (riesgo bajo o de despliegue) | 8 |
+| Descartados del informe anterior | 3 |
 
-El proyecto evidencia un nivel alto de madurez en aspectos de diseño de software (separación en capas por dominio, validación estricta con Bean Validation, manejo unificado de errores bajo RFC 7807, cifrado AES-GCM para datos sensibles de desbloqueo y control de concurrencia optimista/pesimista). No obstante, se han identificado **vulnerabilidades críticas y riesgos operativos** que deben ser abordados antes de pasar a un entorno de producción público.
+No se encontraron inyección SQL, XSS, endpoints internos sin control de rol ni accesos a órdenes de otro técnico (IDOR). El hallazgo más grave de esta revisión fue nuevo: `SampleDataInitializer` creaba por defecto usuarios con la contraseña fija `Password123*`. Ya está corregido.
 
-### Matriz de Riesgos Identificados
+Pruebas: 67 pruebas del backend en verde (6 nuevas, cada una verificada en rojo sin su corrección), `oxlint` sin advertencias, `vite build` correcto y `npm audit` sin vulnerabilidades.
 
-| Nivel | Hallazgo | Componente Afectado | Impacto Principal |
+---
+
+## 2. Qué se revisó y cómo
+
+| Área | Método | Resultado |
+|---|---|---|
+| Rutas y permisos | Se listaron los 101 endpoints con su `@PreAuthorize` | Todos los internos tienen regla de rol. Sin token solo quedan `POST /api/auth/login` y `/api/public/**` |
+| Cadena de seguridad | Lectura de `SecurityConfig` y `JwtAuthFilter` | Sin estado, sin CSRF (no hay cookies), `anyRequest().denyAll()` fuera de `/api`, HS256 con emisor y expiración sin tolerancia |
+| Pertenencia (IDOR) | Revisión de cada método con `isAuthenticated()` o `TECHNICIAN` | El técnico solo lee y trabaja sus órdenes (`findVisibleIntervention`, `requireRepairer`), sus repuestos usados, sus solicitudes, su disponibilidad y sus ganancias |
+| Inyección SQL | Búsqueda de SQL nativo, `EntityManager`, concatenación en `@Query` y `Sort` dinámico; prueba real contra MySQL con `sort=fullName); DROP TABLE x;--` | No hay SQL nativo. Toda consulta usa parámetros. El `sort` malicioso lo rechaza Spring Data |
+| Comodines de LIKE | Revisión de las 4 búsquedas de texto | 3 escapaban `!`, `%` y `_`; la de personas no (corregida) |
+| Validación de entrada | `@RequestBody` sin `@Valid`; DTO con `@Size` y `@Pattern` | Todos los cuerpos llevan `@Valid`. Enums e ids tipados en la ruta |
+| Datos sensibles | DTO de salida, logs y PDF | Sin hashes ni claves en las respuestas. Los logs no imprimen contraseñas ni tokens. El PDF del portal exponía datos de identidad (corregido) |
+| Cifrado | `EncryptedStringConverter` | AES-256-GCM, IV aleatorio de 12 bytes con `SecureRandom` y llave de 32 bytes obligatoria |
+| Frontend | `dangerouslySetInnerHTML`, `eval`, `href` dinámicos, almacenamiento, secretos | Sin XSS. Los `href` solo son `tel:` y `mailto:`. La sesión vive en `sessionStorage` y no hay secretos en el código |
+| Dependencias | `npm audit --omit=dev` | 0 vulnerabilidades |
+
+---
+
+## 3. Corregidos en esta revisión
+
+### 3.1 Usuarios con contraseña fija en los datos de ejemplo — Crítico (nuevo)
+`SampleDataInitializer` estaba activo por defecto (`fixtrack.seed-data:true`). Sobre una base vacía creaba admin, coordinador, asesor y técnico con la contraseña `Password123*`, escrita en el código. Eso anulaba la protección de `InitialAdminInitializer` y `DemoUsersInitializer`, que no crean usuarios si falta la contraseña.
+
+**Corrección:** queda apagado por defecto (`SEED_DATA=false`), usa `DEMO_USERS_PASSWORD` y, si está vacía, no carga nada.
+
+> **Acción manual:** si alguna base se pobló con esos datos, cambie la contraseña de esas cuentas o desactívelas.
+
+### 3.2 Login sin límite de intentos — Crítico
+`POST /api/auth/login` no tenía ningún freno ante la fuerza bruta.
+
+**Corrección:** `AuthServiceImpl.login` usa `IpAttemptLimiter`, con llaves `login:<ip>` separadas de las del portal. Con 10 fallos en 15 minutos responde 429 sin verificar la contraseña. A propósito no se bloquea la cuenta por correo: así un atacante no puede dejar al administrador sin acceso. Pruebas: `AuthServiceImplTest`.
+
+### 3.3 Comprobante del portal con cédula, IMEI y contactos completos — Crítico (parcial)
+Quien tuviera el código y la clave descargaba el PDF con todos los datos de identidad.
+
+**Corrección:** cuando el comprobante sale del portal (`masked = true`), muestra `CC *****890`, `IMEI ***********3456`, `Celular ********67` y `a***@dominio.co`. El que se imprime en mostrador sigue completo. La consulta JSON del portal ya no exponía estos datos.
+
+### 3.4 El ingreso de una orden podía cambiar el correo de un empleado — Alto
+`registerOrUpdateCustomer` busca la persona por documento sin importar su rol. Si un empleado traía su equipo y el asesor escribía otro correo, ese cambio reemplazaba el correo con el que el empleado inicia sesión.
+
+**Corrección:** si la persona es interna y el correo llega distinto, responde 400 («su correo solo lo cambia el administrador en Personal»). El celular sí se actualiza. Pruebas: `PersonServiceImplTest`.
+
+### 3.5 Tokens válidos después de cambiar la contraseña — Alto
+**Corrección:** `Person.passwordChangedAt`, truncado al segundo, se guarda al cambiar la contraseña propia o cuando la cambia el administrador. `JwtAuthFilter` rechaza los tokens cuyo `iat` sea anterior con «Su contraseña cambió; inicie sesión de nuevo». `PATCH /api/auth/password` devuelve un token nuevo y el front lo guarda, así que la sesión actual sigue y las demás se cierran. Prueba: `SecurityConfigTest.shouldRejectTokenIssuedBeforePasswordChange`.
+
+### 3.6 Búsqueda de personas sin escapar los comodines — Bajo (nuevo)
+`PersonRepository.search` armaba `LIKE CONCAT('%', :search, '%')` sin escapar nada: buscar `%` o `_` devolvía todos los registros. No era inyección, porque el texto llega como parámetro, pero incumplía la regla del proyecto.
+
+**Corrección:** ahora el servicio escapa con `!` y la consulta usa `collate(... utf8mb4_0900_ai_ci) LIKE :pattern ESCAPE '!'`, igual que repuestos y proveedores. Además ya ignora las tildes.
+
+### 3.7 Un `sort` inválido respondía 500 — Bajo (nuevo)
+`?sort=noExiste` lanzaba `InvalidDataAccessApiUsageException`, que caía en el manejador genérico.
+
+**Corrección:** `GlobalExceptionHandler` responde 400 «El orden o los filtros pedidos no son válidos».
+
+### 3.8 Un parámetro mal codificado respondía 500 — Bajo (nuevo)
+Al probar contra el servidor real, `?search=G%F3mez` (una «ó» en Latin-1 en vez de UTF-8) respondía 500: Tomcat lanza `InvalidParameterException` y caía en el manejador genérico. Los navegadores envían UTF-8, así que solo lo provoca un cliente mal hecho o malicioso.
+
+**Corrección:** `GlobalExceptionHandler` responde 400 «La petición tiene caracteres no válidos». Prueba: `GlobalExceptionHandlerTest.shouldReturnBadRequestWhenParameterHasInvalidEncoding`.
+
+### 3.9 Base de datos, CORS y esquema fijos en la configuración — Medio
+**Corrección:** `DB_URL`, `DB_USERNAME`, `CORS_ALLOWED_ORIGINS` y `DDL_AUTO` llegan por entorno, con valores por defecto para desarrollo. `.env.example` ya no trae una contraseña de ejemplo.
+
+### 3.10 Proxy inverso y `X-Forwarded-For` — Alto (corregida la recomendación)
+El informe anterior recomendaba `forward-headers-strategy: framework`. Eso empeora el problema: Spring confiaría en cualquier `X-Forwarded-For`, y un atacante se saltaría el límite por IP cambiando la cabecera en cada intento. Hoy no hay proxy, así que no se activa nada. `application.yml` deja documentado que, detrás de un proxy, se usa `native`, porque Tomcat solo confía en las IPs privadas.
+
+### Verificación de punta a punta (3 de noviembre de 2026)
+Con el backend y el build del front corriendo contra MySQL local:
+
+| Comprobación | Resultado |
+|---|---|
+| PDF de ingreso del portal frente al de mostrador (`FT-00006`) | Portal: `CC *******012`, `********44`, `v***@gmail.com`, `IMEI ***********3455`. Mostrador: completo |
+| Login: 10 fallos desde la misma IP | Intento 10 → 429; con credenciales correctas también 429; el portal sigue respondiendo |
+| Cambio de contraseña desde el formulario (Chrome headless) | La sesión queda con el token nuevo (200), el anterior responde 401 «Su contraseña cambió» y la contraseña vieja ya no inicia sesión |
+| `?sort=noExiste` y `?sort=fullName);DROP TABLE x;--` | 400 |
+| Búsqueda de personas `%`, `_`, «Gómez», «gomez», «GOMEZ» | 0, 0, 2, 2, 2 de 11 |
+| Login, portal y 8 pantallas internas con carga diferida | Se muestran con su título y el menú lateral, sin errores en la consola |
+
+---
+
+## 4. Aceptados o pendientes
+
+| # | Riesgo | Nivel | Decisión |
 |---|---|---|---|
-| 🚨 **Crítico** | Exposición de PII sensible (Cédula, IMEI, teléfono) por clave predecible y códigos secuenciales | Portal Público (`/api/public/...`) | Violación de Ley 1581 (Habeas Data) y robo de identidad de terminales móviles |
-| 🚨 **Crítico** | Ausencia de Rate Limiting y protección contra fuerza bruta en Login de empleados | Autenticación (`/api/auth/login`) | Compromiso de credenciales por ataques de diccionario masivos |
-| ⚠️ **Alto** | DoS global en el portal si se despliega tras Proxy Inverso (`getRemoteAddr`) | Seguridad IP (`IpAttemptLimiter`) | Bloqueo total del portal de consulta para todos los clientes |
-| ⚠️ **Alto** | Alteración y desconfiguración accidental de cuentas internas al registrar clientes | Gestión de Personas (`PersonServiceImpl`) | Pérdida de acceso de empleados o secuestro de cuentas |
-| ⚠️ **Alto** | Tokens JWT sin posibilidad de revocación tras Logout o cambio de clave | Gestión de Sesión (`JwtAuthFilter`, `JwtService`) | Sesiones comprometidas activas durante 8 horas ininterrumpidas |
-| ⚡ **Medio** | Uso de `hibernate.ddl-auto: update` y credenciales por defecto | Persistencia (`application.yml`) | Riesgo de inconsistencia de esquema o pérdida de datos en despliegue |
-| ⚡ **Medio** | Consumo excesivo de memoria en reportes Excel anuales (`XSSFWorkbook`) | Reportes (`ProfitExcelExporter`) | Riesgo de `OutOfMemoryError` en el servidor JVM |
-| ⚡ **Medio** | Control de intentos en memoria RAM no distribuido | Escalabilidad (`IpAttemptLimiter`) | Evasión de bloqueos en arquitecturas multi-instancia |
-| 🔍 **Bajo** | Versiones experimentales/anómalas en `pom.xml` (Spring Boot 4.1.1 / Java 25) | Build y Dependencias (`pom.xml`) | Incompatibilidad con plugins CI/CD y analizadores SAST estándar |
-| 🔍 **Bajo** | Políticas de contraseña básicas sin comprobación de entropía | Seguridad de Cuentas | Vulnerabilidad ante contraseñas débiles |
+| 4.1 | La clave de consulta son los últimos 4 dígitos del celular | Medio | **Regla de negocio** (`fixtrack.md`). La mitigan el bloqueo por código (5 fallos → 15 min, en la base de datos), el límite por IP y el PDF enmascarado. Probar las 10.000 claves de una orden toma semanas. Cambiarla a siempre aleatoria es una decisión del negocio |
+| 4.2 | Los listados aceptan ordenar por cualquier campo de la entidad (por ejemplo `sort=password`) | Bajo | Sin fuga práctica: ordenar por un hash bcrypt o un texto cifrado no revela nada, y los campos inválidos ya responden 400. Para cumplir la regla del «mapa de campos permitidos», llevar a todos los listados el `toSort` que ya usa `SparePartServiceImpl` |
+| 4.3 | `IpAttemptLimiter` vive en memoria | Bajo | Válido mientras haya una sola instancia. Con varias, pasarlo a Redis o a una tabla |
+| 4.4 | `ddl-auto: update` por defecto | Medio | Válido en desarrollo. En producción, `DDL_AUTO=validate`; Flyway, si el esquema empieza a cambiar con datos reales |
+| 4.5 | Sin HTTPS, CSP ni cabeceras de seguridad en el front | Medio (despliegue) | La API ya envía las cabeceras por defecto de Spring Security. Al desplegar: TLS en el proxy, `Content-Security-Policy`, `Strict-Transport-Security` y límite de tamaño del cuerpo |
+| 4.6 | Token en `sessionStorage` | Bajo | No hay vectores de XSS. Una CSP (4.5) lo refuerza |
+| 4.7 | El portal bloquea la fila de la orden (`PESSIMISTIC_WRITE`) en cada consulta | Bajo | Necesario para contar bien los fallos. Muchas consultas a un mismo código solo hacen esperar a esa orden, y el límite por IP las frena |
+| 4.8 | `PATCH /api/auth/password` no limita los intentos con la contraseña actual | Bajo | Exige un token válido. Si se quiere, aplicar la misma llave por usuario en `IpAttemptLimiter` |
 
 ---
 
-## 2. Hallazgos Detallados por Severidad
+## 5. Descartados del informe anterior
 
-### 🚨 2.1. Riesgos Críticos (Severidad Alta)
-
-#### 2.1.1. Exposición Masiva de Datos Personales (PII) e IMEI en el Portal Público
-* **Ubicación en código:**
-  - `fixtrackback/src/main/java/com/fixtrack/intervention/service/impl/InterventionServiceImpl.java` (Líneas 129–133)
-  - `fixtrackback/src/main/java/com/fixtrack/intervention/service/impl/ReceiptServiceImpl.java` (Líneas 138–158)
-  - `fixtrackback/src/main/java/com/fixtrack/intervention/controller/PortalController.java` (Líneas 34–38)
-  - `fixtrackback/src/main/java/com/fixtrack/intervention/mapper/InterventionCode.java` (Líneas 26–28)
-* **Descripción de la falla:**
-  1. La clave de consulta (`accessKey`) asignada a la orden de reparación no es aleatoria: cuando el cliente tiene teléfono registrado, la clave corresponde sistemáticamente a los **últimos 4 dígitos de su teléfono celular**:
-     ```java
-     String accessKey = customer.getPhone() != null
-         ? customer.getPhone().substring(customer.getPhone().length() - 4)
-         : randomAccessKey();
-     ```
-  2. Los códigos de orden de reparación son enteros autoincrementales predecibles formateados como `FT-%05d` (`FT-00001`, `FT-00002`, `FT-00003`...).
-  3. A través del endpoint público `/api/public/interventions/receipts/intake`, cualquier persona que consulte con código y clave descarga el comprobante oficial en PDF, exponiendo:
-     - Nombre completo del cliente.
-     - Tipo y número de documento (Cédula de Ciudadanía).
-     - Teléfono celular y correo electrónico.
-     - **IMEI** y número de serie del dispositivo móvil.
-     - Diagnóstico, presupuesto y notas físicas.
-* **Impacto:** Si un tercero conoce el teléfono celular de una persona y sospecha que envió a reparar un equipo, o si prueba combinaciones sobre los códigos secuenciales, puede extraer toda la información personal y el IMEI del equipo. En Colombia, esto constituye una violación grave del principio de confidencialidad de la **Ley Estatutaria 1581 de 2012 (Habeas Data)** y expone al cliente a suplantación o bloqueo de terminales.
-* **Mitigación recomendada:**
-  1. Generar **siempre** un PIN criptográfico aleatorio mediante `SecureRandom` para la `accessKey`, desvinculándolo del celular del cliente.
-  2. Opcionalmente, complementar el código visible con caracteres aleatorios no correlativos (e.g. `FT-4829-K7`).
-  3. Enmascarar los datos en el PDF de consulta pública (`CC *****123`, `IMEI **********3456`) o generar una versión simplificada de comprobante sin datos sensibles de identidad.
+| Hallazgo | Motivo |
+|---|---|
+| «Spring Boot 4 / Java 25 son versiones experimentales» | Falso: Spring Boot 4 salió en noviembre de 2025 y Java 25 es LTS |
+| Migrar el Excel a `SXSSFWorkbook` | El informe cubre como máximo 366 días de órdenes entregadas de una tienda, unos miles de filas que `XSSFWorkbook` maneja sin problema |
+| Exigir mayúsculas, números y símbolos en las contraseñas | NIST SP 800-63B desaconseja las reglas de composición. Si se endurece, subir la longitud mínima a 10–12 caracteres |
 
 ---
 
-#### 2.1.2. Ausencia de Rate Limiting en el Endpoint de Autenticación de Empleados
-* **Ubicación en código:**
-  - `fixtrackback/src/main/java/com/fixtrack/person/controller/AuthController.java` (Líneas 29–32)
-  - `fixtrackback/src/main/java/com/fixtrack/person/service/impl/AuthServiceImpl.java` (Líneas 43–58)
-* **Descripción de la falla:**
-  - El componente `IpAttemptLimiter` fue inyectado y utilizado únicamente en el portal de clientes (`PortalServiceImpl`).
-  - El endpoint de inicio de sesión de empleados (`POST /api/auth/login`) no cuenta con limitación de peticiones por IP, ni bloqueo de cuentas tras fallos reiterados, ni protección tipo Captcha.
-* **Impacto:** Un atacante puede ejecutar ataques masivos de fuerza bruta, *credential stuffing* o ataques de diccionario contra cuentas administrativas (`admin@fixtrack.local`) y de personal operativo, facilitando la toma de control del sistema interno.
-* **Mitigación recomendada:**
-  - Implementar rate limiting en `/api/auth/login` (usando un filtro servlet, interceptor o librería como Bucket4j).
-  - Agregar un contador de intentos fallidos en la entidad `Person` (`failedLoginAttempts`, `lockedUntil`) que bloquee la cuenta por 15 minutos tras 5 intentos fallidos consecutivos.
+## 6. Puntos fuertes confirmados
 
----
-
-### ⚠️ 2.2. Riesgos Altos (Seguridad, Integridad y Disponibilidad)
-
-#### 2.2.1. Riesgo de DoS Global en Portal Público por uso de `getRemoteAddr()`
-* **Ubicación en código:**
-  - `fixtrackback/src/main/java/com/fixtrack/intervention/controller/PortalController.java` (Líneas 30–44)
-  - `fixtrackback/src/main/java/com/fixtrack/infra/security/IpAttemptLimiter.java` (Líneas 28–53)
-  - `fixtrackback/src/main/resources/application.yml`
-* **Descripción de la falla:**
-  - `PortalController` obtiene la dirección del cliente mediante `http.getRemoteAddr()`.
-  - Cuando la aplicación se despliega en producción detrás de un balanceador o proxy inverso (Nginx, Traefik, Cloudflare, AWS ALB), `getRemoteAddr()` retorna la IP del proxy (`127.0.0.1` o una IP local del clúster).
-  - `application.yml` no tiene habilitado `server.forward-headers-strategy=framework`.
-* **Impacto:** Si un solo usuario o atacante falla 10 veces en el portal público, la IP del balanceador/proxy queda bloqueada en `IpAttemptLimiter`. En consecuencia, **todos los clientes legítimos quedan bloqueados simultáneamente**, provocando una Denegación de Servicio (DoS) total.
-* **Mitigación recomendada:**
-  - Agregar en `application.yml`:
-    ```yaml
-    server:
-      forward-headers-strategy: framework
-    ```
-  - Configurar las cabeceras `X-Forwarded-For` de forma segura en el proxy inverso.
-
----
-
-#### 2.2.2. Corrupción y Modificación Accidental de Cuentas Internas al Registrar Clientes
-* **Ubicación en código:**
-  - `fixtrackback/src/main/java/com/fixtrack/person/service/impl/PersonServiceImpl.java` (Líneas 166–178 y 230–249)
-* **Descripción de la falla:**
-  - Al abrir una orden de reparación en el mostrador, se ejecuta `registerOrUpdateCustomer(CustomerRequest)`.
-  - La consulta `personRepository.findByDocumentTypeAndDocumentNumber(...)` busca en toda la tabla `person` sin validar el rol.
-  - Si un asesor registra como cliente a un empleado que lleva un equipo personal y escribe un correo personal o genérico, el método `updateContact(person, request)` **sobrescribe el email del usuario interno**:
-    ```java
-    if (existing.isPresent()) {
-        Person person = existing.get();
-        if (!person.isActive()) {
-            throw new ConflictException("La persona con documento ... está dada de baja");
-        }
-        updateContact(person, request); // <-- Modifica email de la entidad interna
-        return person;
-    }
-    ```
-* **Impacto:** El empleado interno pierde su correo institucional de inicio de sesión o un asesor puede accidentalmente cambiar las credenciales de un técnico o coordinador.
-* **Mitigación recomendada:**
-  - Validar si la persona encontrada tiene un rol interno (`person.getRole() != Role.CUSTOMER`). Si es así, no modificar su correo institucional de acceso ni permitir cambios no autorizados sin validación previa.
-
----
-
-#### 2.2.3. Ausencia de Revocación e Invalidación de Tokens JWT (8 Horas Fijas)
-* **Ubicación en código:**
-  - `fixtrackback/src/main/java/com/fixtrack/infra/security/JwtAuthFilter.java` (Líneas 62–80)
-  - `fixtrackback/src/main/java/com/fixtrack/person/service/impl/AuthServiceImpl.java` (Líneas 63–73)
-* **Descripción de la falla:**
-  - Los tokens JWT tienen una vida útil predeterminada de 8 horas (`fixtrack.jwt.expiration: 8h`).
-  - Al cerrar sesión en el frontend (`AuthProvider.logout`), solo se elimina el token de `sessionStorage`; el token permanece criptográficamente válido en el servidor.
-  - Al cambiar la contraseña en `/api/auth/password`, no se registra la fecha de cambio ni se invalidan los tokens previamente emitidos.
-* **Impacto:** Si un token es sustraído (por ejemplo, en un navegador en una terminal compartida o por spyware), el atacante conserva acceso irrestricto durante 8 horas, aun si el usuario legítimo cerró sesión o cambió su contraseña inmediatamente.
-* **Mitigación recomendada:**
-  - Añadir en `Person` el campo `LocalDateTime passwordChangedAt`.
-  - En `JwtAuthFilter`, comparar el claim `iat` (issued at) del JWT: si el token fue emitido antes de `passwordChangedAt`, rechazar la petición con error 401.
-
----
-
-### ⚡ 2.3. Riesgos Medios (Arquitectura, Resiliencia y Rendimiento)
-
-#### 2.3.1. Uso de `hibernate.ddl-auto: update` en Producción
-* **Ubicación en código:**
-  - `fixtrackback/src/main/resources/application.yml` (Líneas 14–15)
-* **Descripción:** La propiedad `spring.jpa.hibernate.ddl-auto: update` delega a Hibernate la modificación del esquema de la base de datos al arrancar la aplicación.
-* **Impacto:** Hibernate noversiona cambios, no genera scripts de rollback, no renombra columnas de forma segura (crea columnas duplicadas y deja datos huérfanos) y puede provocar bloqueos de tablas prolongados en arranques de producción.
-* **Mitigación recomendada:**
-  - Configurar `ddl-auto: validate` o `none` para producción.
-  - Implementar **Flyway** o **Liquibase** para manejar migraciones de esquema SQL trazables y versionadas.
-
----
-
-#### 2.3.2. Parámetros de Base de Datos y CORS Rígidos en Configuración
-* **Ubicación en código:**
-  - `fixtrackback/src/main/resources/application.yml` (Líneas 8–12 y 62–63)
-* **Descripción:**
-  - La URL de conexión asume `localhost:3306` y el usuario por defecto es `root`, sin variables específicas como `${DB_HOST}`, `${DB_PORT}`, `${DB_USER}`.
-  - La propiedad `fixtrack.cors.allowed-origins` está fijada como literal `http://localhost:5173` sin plantilla para variables de entorno (`${CORS_ALLOWED_ORIGINS}`).
-* **Impacto:** Dificulta el despliegue en contenedores Docker, clústeres Kubernetes o servicios gestionados (AWS RDS, Google Cloud SQL), y bloqueará las peticiones de cualquier frontend desplegado bajo un dominio real de producción.
-* **Mitigación recomendada:**
-  - Ajustar en `application.yml`:
-    ```yaml
-    datasource:
-      url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:fixtrack}?serverTimezone=America/Bogota
-      username: ${DB_USER:root}
-      password: ${DB_PASSWORD}
-    cors:
-      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
-    ```
-
----
-
-#### 2.3.3. Sobrecarga de Memoria en Exportación de Informes Excel (`XSSFWorkbook`)
-* **Ubicación en código:**
-  - `fixtrackback/src/main/java/com/fixtrack/intervention/service/impl/ProfitExcelExporter.java` (Líneas 31–41)
-* **Descripción:** `ProfitExcelExporter` utiliza la clase `XSSFWorkbook` estándar de Apache POI para construir el informe anual de ganancias.
-* **Impacto:** `XSSFWorkbook` mantiene todo el modelo de objetos XML del libro en memoria Heap. Cuando el negocio acumula miles de órdenes a lo largo de un año, la exportación puede agotar la memoria de la JVM y provocar caídas por `OutOfMemoryError`.
-* **Mitigación recomendada:**
-  - Migrar a `SXSSFWorkbook` (la versión optimizada para streaming de Apache POI), la cual mantiene una ventana deslizante de filas en memoria y descarga el excedente a archivos temporales.
-
----
-
-#### 2.3.4. Estado en Memoria de `IpAttemptLimiter` no Distribuido
-* **Ubicación en código:**
-  - `fixtrackback/src/main/java/com/fixtrack/infra/security/IpAttemptLimiter.java` (Líneas 25–27)
-* **Descripción:** Los intentos fallidos y bloqueos temporales se gestionan en un `ConcurrentHashMap` local en memoria RAM.
-* **Impacto:**
-  - Si la aplicación se escala a dos o más instancias/contenedores detrás de un balanceador de carga, los atacantes pueden rotar peticiones entre réplicas eludiendo el bloqueo.
-  - Cualquier reinicio de la aplicación o del contenedor borra todos los bloqueos activos.
-* **Mitigación recomendada:**
-  - Externalizar el almacenamiento de contadores de intentos a una instancia de Redis o usar una tabla en base de datos si se requiere persistencia distribuida.
-
----
-
-### 🔍 2.4. Riesgos Menores y Deuda Técnica
-
-#### 2.4.1. Versiones Anómalas en `pom.xml`
-* **Ubicación en código:**
-  - `fixtrackback/pom.xml` (Líneas 8 y 30)
-* **Descripción:** El archivo `pom.xml` declara `spring-boot-starter-parent` en versión `4.1.1` y `<java.version>25</java.version>`.
-* **Impacto:** Spring Boot 4 aún no existe como versión de producción (la versión GA estable del mercado es Spring Boot 3.4.x). Declarar versiones atípicas o experimentales puede provocar fallos de resolución en entornos CI/CD estándar e incompatibilidad con herramientas de análisis estático (SonarQube, Snyk, Dependabot).
-* **Mitigación recomendada:**
-  - Establecer una versión de soporte a largo plazo (LTS) probada, como Spring Boot `3.4.x` con Java `21` o `25`.
-
----
-
-#### 2.4.2. Políticas de Contraseña Básicas
-* **Ubicación en código:**
-  - `fixtrackback/src/main/java/com/fixtrack/person/dto/ChangePasswordRequest.java` (Línea 6)
-  - `fixtrackback/src/main/java/com/fixtrack/person/dto/PersonRequest.java` (Línea 23)
-* **Descripción:** La validación de contraseñas únicamente verifica `@Size(min = 8, max = 72)`, sin exigir combinación de números, letras mayúsculas, minúsculas o símbolos especiales.
-* **Mitigación recomendada:**
-  - Incorporar una validación con expresión regular o validador personalizado (e.g. `@Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)...")`).
-
----
-
-## 3. Puntos Fuertes Identificados en la Arquitectura
-
-Es relevante destacar que el proyecto cuenta con defensas y estándares técnicos sobresalientes:
-
-1. **Cifrado de Alta Calidad para Datos de Desbloqueo:** Los patrones y contraseñas de desbloqueo de los dispositivos de clientes se almacenan cifrados con **AES-GCM (128-bit tag e IV aleatorio de 12 bytes)** en `EncryptedStringConverter.java` y se borran automáticamente al entregar o cancelar la orden.
-2. **Control de Concurrencia Robusto:** El inventario implementa bloqueo optimista con `@Version` en `SparePart.java`, y bloqueo pesimista con `@Lock(LockModeType.PESSIMISTIC_WRITE)` en `PartRequestRepository.java` para prevenir condiciones de carrera en el stock.
-3. **Manejo Centralizado de Errores:** `GlobalExceptionHandler.java` neutraliza fugas de stack traces internos y estandariza los errores de la API bajo el formato RFC 7807 (`ProblemDetail`).
-4. **Calidad de Código en Frontend:** `fixtrack-front` superó el análisis con 0 errores y 0 advertencias en 145 archivos analizados con Oxlint; no presenta usos riesgosos de `dangerouslySetInnerHTML` y mantiene la sesión aislada en `sessionStorage`.
-
----
-
-## 4. Plan de Acción Priorizado
-
-1. **Inmediato (P0 — Urgente de Seguridad):**
-   - Corregir la generación de la `accessKey` para que use siempre números aleatorios seguros de 4 dígitos.
-   - Enmascarar la cédula e IMEI en el PDF de consulta pública del portal.
-   - Implementar rate limiting en `/api/auth/login`.
-   - Activar `server.forward-headers-strategy=framework` en `application.yml`.
-2. **Corto Plazo (P1 — Integridad de Datos y Operación):**
-   - Proteger las cuentas internas en `PersonServiceImpl.registerOrUpdateCustomer` para que no se sobrescriba el email de empleados.
-   - Añadir validación de revocación de JWT tras cambio de contraseña (`passwordChangedAt`).
-   - Parametrizar variables de entorno para CORS y conexión a base de datos.
-3. **Medio Plazo (P2 — Resiliencia e Infraestructura):**
-   - Reemplazar `ddl-auto: update` por Flyway para migraciones SQL.
-   - Migrar la exportación de reportes Excel a `SXSSFWorkbook`.
-
+- Todo endpoint interno tiene `@PreAuthorize` y la cadena termina en `denyAll()`.
+- Pertenencia validada en el servicio, no solo ocultando botones en el front.
+- El token se revalida en cada petición: un usuario desactivado, con otro rol o con la contraseña cambiada queda fuera de inmediato.
+- Login sin enumeración de usuarios y portal con hash ficticio para que el tiempo de respuesta no delate qué códigos existen.
+- La contraseña de desbloqueo va con AES-GCM y se borra al entregar o cancelar. La clave de consulta y las contraseñas se guardan con bcrypt.
+- `ProblemDetail` sin trazas ni SQL. Jackson rechaza decimales en enteros y todos los cuerpos pasan por Bean Validation.
+- Stock protegido con `@Version` y bloqueo pesimista en las solicitudes de repuestos.

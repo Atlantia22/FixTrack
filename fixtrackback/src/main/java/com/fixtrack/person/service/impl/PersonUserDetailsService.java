@@ -27,7 +27,7 @@ public class PersonUserDetailsService implements UserDetailsService {
 		return personRepository.findByEmail(email.trim().toLowerCase(Locale.ROOT))
 				.filter(person -> person.getRole() != Role.CUSTOMER && person.getPassword() != null)
 				.map(person -> new AuthenticatedUser(person.getId(), person.getFullName(), person.getEmail(),
-						person.getRole(), person.getPassword(), person.isActive()))
+						person.getRole(), person.getPassword(), person.isActive(), person.getPasswordChangedAt()))
 				.orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
 	}
 }

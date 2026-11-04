@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -120,6 +121,17 @@ class SecurityConfigTest {
 		registered(1L, "asesor@fixtrack.test", Role.TECHNICIAN, true);
 		mockMvc.perform(get("/api/samples/advisor").header(HttpHeaders.AUTHORIZATION, token))
 				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void shouldRejectTokenIssuedBeforePasswordChange() throws Exception {
+		AuthenticatedUser advisor = registered(1L, "asesor@fixtrack.test", Role.ADVISOR, true);
+		String token = bearer(advisor);
+		given(userDetailsService.loadUserByUsername("asesor@fixtrack.test")).willReturn(new AuthenticatedUser(1L,
+				"Prueba", "asesor@fixtrack.test", Role.ADVISOR, "hash", true, Instant.now().plusSeconds(60)));
+		mockMvc.perform(get("/api/samples/advisor").header(HttpHeaders.AUTHORIZATION, token))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.detail").value("Su contraseña cambió; inicie sesión de nuevo"));
 	}
 
 	@Test

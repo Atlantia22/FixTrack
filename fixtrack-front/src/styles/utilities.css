@@ -226,7 +226,7 @@
   border: 0;
 }
 
-/* Carga de una página diferida (Informes): mensaje centrado con un indicador que gira */
+/* Carga de una página diferida: mensaje centrado con un indicador que gira */
 .page-loading {
   display: flex;
   align-items: center;

@@ -1,3 +1,5 @@
+# Detrás de un proxy inverso usar server.forward-headers-strategy: native (Tomcat solo confía en IPs privadas);
+# no usar framework: aceptaría un X-Forwarded-For falso y permitiría saltarse el límite de intentos por IP
 spring:
   application:
     name: fixtrackback
@@ -6,13 +8,14 @@ spring:
     import: optional:file:.env[.properties]
   # Crea la base fixtrack al arrancar si no existe en el equipo; ddl-auto crea luego las tablas
   datasource:
-    url: jdbc:mysql://localhost:3306/fixtrack?serverTimezone=America/Bogota&createDatabaseIfNotExist=true
-    username: root
+    url: ${DB_URL:jdbc:mysql://localhost:3306/fixtrack?serverTimezone=America/Bogota&createDatabaseIfNotExist=true}
+    username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      # update solo en desarrollo; en producción DDL_AUTO=validate
+      ddl-auto: ${DDL_AUTO:update}
     # SQL en la consola solo si SHOW_SQL=true (para depurar); apagado por defecto para no llenar el log
     show-sql: ${SHOW_SQL:false}
     open-in-view: false
@@ -40,6 +43,8 @@ fixtrack:
     full-name: Administrador
     document-type: CC
     document-number: ${ADMIN_DOCUMENT_NUMBER:0000000000}
+  # Catálogos, clientes y órdenes de ejemplo para desarrollo; solo con SEED_DATA=true y DEMO_USERS_PASSWORD
+  seed-data: ${SEED_DATA:false}
   # Usuarios de prueba por rol para desarrollo; se crean solo si DEMO_USERS_PASSWORD tiene valor
   demo-users:
     password: ${DEMO_USERS_PASSWORD:}
@@ -59,8 +64,9 @@ fixtrack:
         role: TECHNICIAN
         document-type: CC
         document-number: "1000000003"
+  # Orígenes del front separados por coma (por ejemplo https://fixtrack.midominio.co)
   cors:
-    allowed-origins: http://localhost:5173
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   # Dirección del portal del cliente que se imprime en el comprobante de ingreso
   portal-url: ${PORTAL_URL:http://localhost:5173/consulta}
   # Llave AES de 32 bytes en Base64 para cifrar la contraseña o patrón de desbloqueo

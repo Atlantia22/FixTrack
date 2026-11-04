@@ -101,14 +101,22 @@ public class SampleDataInitializer implements ApplicationRunner {
 	private final PasswordEncoder passwordEncoder;
 	private final Clock clock;
 
-	@Value("${fixtrack.seed-data:true}")
+	@Value("${fixtrack.seed-data:false}")
 	private boolean seedDataEnabled;
+
+	// Contraseña de los usuarios de prueba; nunca fija en el código
+	@Value("${fixtrack.demo-users.password:}")
+	private String demoPassword;
 
 	@Override
 	@Transactional
 	public void run(ApplicationArguments args) {
 		if (!seedDataEnabled) {
 			log.info("Carga de datos de prueba desactivada (fixtrack.seed-data=false)");
+			return;
+		}
+		if (demoPassword == null || demoPassword.isBlank()) {
+			log.warn("SEED_DATA=true pero DEMO_USERS_PASSWORD está vacío; se omite la carga de datos de prueba");
 			return;
 		}
 
@@ -531,7 +539,7 @@ public class SampleDataInitializer implements ApplicationRunner {
 						.documentNumber(docNumber)
 						.fullName(fullName)
 						.email(normalizedEmail)
-						.password(passwordEncoder.encode("Password123*"))
+						.password(passwordEncoder.encode(demoPassword))
 						.role(role)
 						.availability(role == Role.TECHNICIAN ? Availability.AVAILABLE : null)
 						.active(true)

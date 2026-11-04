@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.apache.tomcat.util.http.InvalidParameterException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -83,6 +84,13 @@ class GlobalExceptionHandlerTest {
 	}
 
 	@Test
+	void shouldReturnBadRequestWhenParameterHasInvalidEncoding() throws Exception {
+		mockMvc.perform(get("/api/samples/bad-encoding"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.detail").value("La petición tiene caracteres no válidos; revise lo que escribió e intente de nuevo"));
+	}
+
+	@Test
 	void shouldRejectPreflightFromUnknownOrigin() throws Exception {
 		mockMvc.perform(options("/api/samples")
 				.header("Origin", "http://evil.example")
@@ -99,6 +107,12 @@ class GlobalExceptionHandlerTest {
 		@GetMapping("/api/samples/missing")
 		void missing() {
 			throw new NotFoundException("Orden no encontrada");
+		}
+
+		// Lo que lanza Tomcat cuando un parámetro no viene en UTF-8 válido (por ejemplo, search=G%F3mez)
+		@GetMapping("/api/samples/bad-encoding")
+		void badEncoding() {
+			throw new InvalidParameterException("Character decoding failed");
 		}
 
 		@PostMapping("/api/samples")

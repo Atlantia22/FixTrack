@@ -9,7 +9,8 @@ public interface AuthService {
 
 	AuthenticatedUser authenticate(String email, String password);
 
-	LoginResponse login(LoginRequest request);
+	LoginResponse login(LoginRequest request, String clientIp);
 
-	void changePassword(AuthenticatedUser actor, ChangePasswordRequest request);
+	// Devuelve un token nuevo: los emitidos antes del cambio dejan de servir
+	LoginResponse changePassword(AuthenticatedUser actor, ChangePasswordRequest request);
 }

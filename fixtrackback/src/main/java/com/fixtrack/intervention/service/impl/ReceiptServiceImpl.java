@@ -95,7 +95,7 @@ public class ReceiptServiceImpl implements ReceiptService {
 	// La clave solo se guarda con hash: se imprime la que llega si coincide con la vigente (recién creada o regenerada)
 	@Override
 	@Transactional(readOnly = true)
-	public ReceiptFile intakeReceipt(Long id, String accessKey) {
+	public ReceiptFile intakeReceipt(Long id, String accessKey, boolean masked) {
 		Intervention intervention = pricingService.getEntity(id);
 		Intervention keyOwner = intervention.getWarrantyOf() != null ? intervention.getWarrantyOf() : intervention;
 		if (accessKey == null || accessKey.isBlank()) {
@@ -140,9 +140,9 @@ public class ReceiptServiceImpl implements ReceiptService {
 			section(document, "Cliente");
 			document.add(rows(
 					"Nombre", customer.getFullName(),
-					"Documento", ReceiptLabels.DOCUMENT_TYPES.get(customer.getDocumentType()) + " " + customer.getDocumentNumber(),
-					"Celular", orNotAvailable(customer.getPhone()),
-					"Correo", orNotAvailable(customer.getEmail())));
+					"Documento", ReceiptLabels.DOCUMENT_TYPES.get(customer.getDocumentType()) + " " + mask(customer.getDocumentNumber(), 3, masked),
+					"Celular", orNotAvailable(mask(customer.getPhone(), 2, masked)),
+					"Correo", orNotAvailable(maskEmail(customer.getEmail(), masked))));
 			if (customer.getPhone() == null && customer.getEmail() == null) {
 				document.add(paragraph(NO_CONTACT_WARNING, ALERT, 4));
 			}
@@ -153,8 +153,8 @@ public class ReceiptServiceImpl implements ReceiptService {
 			document.add(rows(
 					"Equipo", deviceName(device),
 					"Tipo", ReceiptLabels.DEVICE_TYPES.get(device.getDeviceModel().getDeviceType()),
-					"IMEI", orDash(device.getImei()),
-					"Número de serie", orDash(device.getSerialNumber()),
+					"IMEI", orDash(mask(device.getImei(), 4, masked)),
+					"Número de serie", orDash(mask(device.getSerialNumber(), 4, masked)),
 					"Color", orDash(device.getColor()),
 					"Estado físico", intervention.getPhysicalCondition()));
 
@@ -179,7 +179,7 @@ public class ReceiptServiceImpl implements ReceiptService {
 	// Solo de órdenes entregadas: fechas, resultado, servicios, repuestos sin precio, total, pagos y garantía
 	@Override
 	@Transactional(readOnly = true)
-	public ReceiptFile deliveryReceipt(Long id) {
+	public ReceiptFile deliveryReceipt(Long id, boolean masked) {
 		Intervention intervention = pricingService.getEntity(id);
 		String code = InterventionCode.of(intervention);
 		if (intervention.getStatus() != InterventionStatus.DELIVERED) {
@@ -202,7 +202,7 @@ public class ReceiptServiceImpl implements ReceiptService {
 			section(document, "Cliente y equipo");
 			document.add(rows(
 					"Cliente", customer.getFullName(),
-					"Documento", ReceiptLabels.DOCUMENT_TYPES.get(customer.getDocumentType()) + " " + customer.getDocumentNumber(),
+					"Documento", ReceiptLabels.DOCUMENT_TYPES.get(customer.getDocumentType()) + " " + mask(customer.getDocumentNumber(), 3, masked),
 					"Equipo", deviceName(intervention.getDevice()),
 					"Fecha estimada de entrega", formatDate(intervention.getEstimatedDeliveryDate()),
 					"Fecha de entrega", formatDateTime(intervention.getDeliveredAt())));
@@ -389,6 +389,23 @@ public class ReceiptServiceImpl implements ReceiptService {
 
 	private String orNotAvailable(String value) {
 		return value == null || value.isBlank() ? NOT_AVAILABLE : value;
+	}
+
+	// Copia del portal: solo deja visibles los últimos caracteres, para que el PDF no exponga datos de identidad
+	private String mask(String value, int visible, boolean masked) {
+		if (!masked || value == null || value.isBlank()) {
+			return value;
+		}
+		int hidden = Math.max(value.length() - visible, value.length() / 2);
+		return "*".repeat(hidden) + value.substring(hidden);
+	}
+
+	private String maskEmail(String email, boolean masked) {
+		if (!masked || email == null || email.isBlank()) {
+			return email;
+		}
+		int at = email.indexOf('@');
+		return at <= 0 ? mask(email, 0, true) : email.charAt(0) + "***" + email.substring(at);
 	}
 
 	private String orDash(String value) {

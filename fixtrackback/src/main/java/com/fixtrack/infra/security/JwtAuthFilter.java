@@ -26,6 +26,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 	private static final String BEARER_PREFIX = "Bearer ";
 	private static final String INVALID_SESSION = "La sesión expiró o no es válida; inicie sesión de nuevo";
 	private static final String USER_CHANGED = "Su usuario fue desactivado o cambió de rol; inicie sesión de nuevo";
+	private static final String PASSWORD_CHANGED = "Su contraseña cambió; inicie sesión de nuevo";
 
 	private final JwtService jwtService;
 	private final UserDetailsService userDetailsService;
@@ -58,7 +59,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 		chain.doFilter(request, response);
 	}
 
-	// Valida firma y expiración, y que el usuario siga activo con el mismo rol con que se emitió el token
+	// Valida firma y expiración, que el usuario siga activo con el mismo rol y que no haya cambiado su contraseña
 	private AuthenticatedUser verify(String token) {
 		Jwt jwt;
 		try {
@@ -75,6 +76,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 		boolean sameUser = jwt.getClaim(JwtService.USER_ID_CLAIM) instanceof Number id && id.longValue() == user.id();
 		if (!user.isEnabled() || !sameUser || !user.role().name().equals(jwt.getClaimAsString(JwtService.ROLE_CLAIM))) {
 			throw new InvalidTokenException(USER_CHANGED);
+		}
+		// Un token emitido antes del último cambio de contraseña queda revocado
+		if (user.passwordChangedAt() != null
+				&& (jwt.getIssuedAt() == null || jwt.getIssuedAt().isBefore(user.passwordChangedAt()))) {
+			throw new InvalidTokenException(PASSWORD_CHANGED);
 		}
 		return user;
 	}

@@ -78,14 +78,14 @@ public class PortalServiceImpl implements PortalService {
 	@Transactional(noRollbackFor = NotFoundException.class)
 	public ReceiptFile intakeReceipt(PortalLookupRequest request, String clientIp) {
 		Access access = authenticate(request, clientIp);
-		return receiptService.intakeReceipt(access.requested().getId(), request.accessKey());
+		return receiptService.intakeReceipt(access.requested().getId(), request.accessKey(), true);
 	}
 
 	@Override
 	@Transactional(noRollbackFor = NotFoundException.class)
 	public ReceiptFile deliveryReceipt(PortalLookupRequest request, String clientIp) {
 		Access access = authenticate(request, clientIp);
-		return receiptService.deliveryReceipt(access.requested().getId());
+		return receiptService.deliveryReceipt(access.requested().getId(), true);
 	}
 
 	// Código y clave contra la orden original bloqueada; con 5 fallos el código queda bloqueado 15 minutos

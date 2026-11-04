@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { Outlet } from 'react-router'
 import AccessibilityPanel from '../AccessibilityPanel/AccessibilityPanel'
 import Sidebar from '../Sidebar/Sidebar'
@@ -12,7 +13,10 @@ export default function AppLayout() {
       </a>
       <Sidebar />
       <main id="main-content" className="app-layout__content" tabIndex={-1}>
-        <Outlet />
+        {/* Mientras se descarga la pantalla, el menú lateral sigue visible */}
+        <Suspense fallback={<p className="page-loading" role="status">Cargando…</p>}>
+          <Outlet />
+        </Suspense>
       </main>
       <AccessibilityPanel />
     </div>

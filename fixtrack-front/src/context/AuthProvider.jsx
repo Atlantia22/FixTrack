@@ -13,8 +13,7 @@ export function AuthProvider({ children }) {
   const [sessionExpired, setSessionExpired] = useState(false)
 
   // Guarda el token JWT; al vencer, el backend responde 401 y la sesión se cierra sola
-  const login = useCallback(async ({ email, password }) => {
-    const { token, user } = await authService.login({ email, password })
+  const startSession = useCallback(({ token, user }) => {
     const nextSession = { authorization: `Bearer ${token}`, user }
     saveSession(nextSession)
     setSession(nextSession)
@@ -22,6 +21,17 @@ export function AuthProvider({ children }) {
     setSessionExpired(false)
     return user
   }, [])
+
+  const login = useCallback(
+    async ({ email, password }) => startSession(await authService.login({ email, password })),
+    [startSession],
+  )
+
+  // Al cambiar la contraseña el backend revoca el token anterior y entrega uno nuevo
+  const changePassword = useCallback(
+    async (passwords) => startSession(await authService.changePassword(passwords)),
+    [startSession],
+  )
 
   const logout = useCallback(() => {
     clearSession()
@@ -48,8 +58,9 @@ export function AuthProvider({ children }) {
       hasRole: (...roles) => Boolean(user) && roles.includes(user.role),
       login,
       logout,
+      changePassword,
     }
-  }, [session, endedByUser, sessionExpired, login, logout])
+  }, [session, endedByUser, sessionExpired, login, logout, changePassword])
 
   return <AuthContext value={value}>{children}</AuthContext>
 }

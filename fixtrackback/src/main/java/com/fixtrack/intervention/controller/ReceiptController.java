@@ -28,13 +28,13 @@ public class ReceiptController {
 	@PreAuthorize("hasRole('ADVISOR')")
 	public ResponseEntity<byte[]> intake(@PathVariable Long id,
 			@RequestHeader(name = "X-Access-Key", required = false) String accessKey) {
-		return pdf(receiptService.intakeReceipt(id, accessKey), ContentDisposition.inline());
+		return pdf(receiptService.intakeReceipt(id, accessKey, false), ContentDisposition.inline());
 	}
 
 	@GetMapping("/delivery")
 	@PreAuthorize("hasRole('ADVISOR')")
 	public ResponseEntity<byte[]> delivery(@PathVariable Long id) {
-		return pdf(receiptService.deliveryReceipt(id), ContentDisposition.attachment());
+		return pdf(receiptService.deliveryReceipt(id, false), ContentDisposition.attachment());
 	}
 
 	private ResponseEntity<byte[]> pdf(ReceiptFile file, ContentDisposition.Builder disposition) {

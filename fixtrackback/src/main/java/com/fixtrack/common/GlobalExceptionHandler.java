@@ -5,9 +5,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.apache.tomcat.util.http.InvalidParameterException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
+import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -79,6 +82,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 				.map(violation -> new FieldErrorResponse(lastNode(violation.getPropertyPath()), violation.getMessage()))
 				.toList();
 		return validationProblem(errors);
+	}
+
+	// Un sort con un campo inexistente o mal formado (?sort=noExiste) es un error del cliente, no del servidor
+	@ExceptionHandler({ PropertyReferenceException.class, InvalidDataAccessApiUsageException.class })
+	public ProblemDetail handleInvalidQuery(RuntimeException ex) {
+		log.warn("Consulta rechazada: {}", ex.getMessage());
+		return problem(HttpStatus.BAD_REQUEST, "El orden o los filtros pedidos no son válidos");
+	}
+
+	// Tomcat no pudo decodificar un parámetro (no venía en UTF-8): es un error del cliente, no del servidor
+	@ExceptionHandler(InvalidParameterException.class)
+	public ProblemDetail handleInvalidEncoding(InvalidParameterException ex) {
+		log.warn("Parámetro con codificación inválida: {}", ex.getMessage());
+		return problem(HttpStatus.BAD_REQUEST, "La petición tiene caracteres no válidos; revise lo que escribió e intente de nuevo");
 	}
 
 	@ExceptionHandler(Exception.class)

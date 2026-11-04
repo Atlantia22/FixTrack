@@ -176,13 +176,17 @@ Cada dominio tiene las mismas capas:
 - Jerarquía de roles (`RoleHierarchy`): `ADMIN` implica `COORDINATOR` y `TECHNICIAN`; `COORDINATOR` implica `ADVISOR`. Por eso `hasRole('ADVISOR')` es «recepción» (asesor, coordinador y administrador), `hasRole('COORDINATOR')` es inventario y catálogos, y `hasRole('ADMIN')` es personas y especialidades. La lectura de catálogos y repuestos es `isAuthenticated()`.
 - El usuario de la petición es un `AuthenticatedUser` (en `infra.security`); los controladores lo obtienen con `CurrentUserProvider.require()` y lo pasan al servicio cuando una regla depende de quién actúa.
 - Toda falla de login responde «Correo o contraseña incorrectos.», sin revelar si el correo existe, si es cliente o si está inactivo.
+- El login y el portal cuentan los fallos por IP en `IpAttemptLimiter` (llaves separadas, 10 en 15 minutos → 429). No se bloquea la cuenta por correo, para que nadie pueda dejar sin acceso a otro usuario. Detrás de un proxy se usa `server.forward-headers-strategy: native`, nunca `framework`.
+- Cambiar la contraseña (propia o por el administrador) guarda `passwordChangedAt`; `JwtAuthFilter` rechaza los tokens emitidos antes. `PATCH /api/auth/password` devuelve un token nuevo para la sesión actual.
+- Los comprobantes descargados desde el portal público enmascaran documento, celular, correo, IMEI y serie.
 - Permisos por rol con `@PreAuthorize("hasRole('ADVISOR')")` y similares en los métodos del servicio o del controlador, según los permisos de `fixtrack.md`. Las reglas de pertenencia (el técnico solo ve sus órdenes) se validan en el servicio.
 - Las contraseñas y la clave de consulta se guardan con el `PasswordEncoder`; nunca en texto plano ni en logs.
 - La contraseña o patrón de desbloqueo se cifra de forma reversible (AES-GCM) con una llave que llega por variable de entorno.
 
 ## Configuración y credenciales
 
-- Credenciales y secretos solo por variables de entorno: `${DB_URL}`, `${DB_USERNAME}`, `${DB_PASSWORD}`, `${JWT_SECRET}`, `${ENCRYPTION_KEY}`. Nada de credenciales en `application.yaml` ni en el repositorio.
+- Credenciales y secretos solo por variables de entorno: `${DB_URL}`, `${DB_USERNAME}`, `${DB_PASSWORD}`, `${JWT_SECRET}`, `${ENCRYPTION_KEY}`. Nada de credenciales en `application.yaml` ni en el repositorio, tampoco contraseñas fijas en inicializadores.
+- `CORS_ALLOWED_ORIGINS` y `DDL_AUTO` (`validate` en producción) también llegan por entorno. Los datos de ejemplo solo se cargan con `SEED_DATA=true` y `DEMO_USERS_PASSWORD`.
 - Zona horaria `America/Bogota`: `spring.jpa.properties.hibernate.jdbc.time_zone`, la zona de la JVM y un bean `Clock` que se inyecta donde se calcule «hoy», para poder probarlo.
 - `spring.jpa.open-in-view: false`.
 - `spring.jpa.hibernate.ddl-auto` nunca en `create` ni `create-drop` fuera del desarrollo local.

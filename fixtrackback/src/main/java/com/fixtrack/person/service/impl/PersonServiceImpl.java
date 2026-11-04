@@ -1,5 +1,7 @@
 package com.fixtrack.person.service.impl;
 
+import java.time.Clock;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -7,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
@@ -47,18 +50,23 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PersonServiceImpl implements PersonService {
 
+	// Comodines de LIKE que se escapan con ! antes de buscar
+	private static final Pattern LIKE_SPECIAL = Pattern.compile("[!%_]");
+
 	private final PersonRepository personRepository;
 	private final PersonSpecialtyRepository personSpecialtyRepository;
 	private final SpecialtyRepository specialtyRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final PersonMapper personMapper;
 	private final SpecialtyMapper specialtyMapper;
+	private final Clock clock;
 
 	@Override
 	@Transactional(readOnly = true)
 	public PageResponse<PersonResponse> search(String search, Role role, boolean staff, boolean active, Pageable pageable) {
-		String term = search == null || search.isBlank() ? null : search.trim();
-		Page<Person> page = personRepository.search(term, role, staff, active, pageable);
+		String pattern = search == null || search.isBlank() ? null
+				: "%" + LIKE_SPECIAL.matcher(search.trim()).replaceAll("!$0") + "%";
+		Page<Person> page = personRepository.search(pattern, role, staff, active, pageable);
 		Map<Long, List<SpecialtyResponse>> specialties = specialtiesByPerson(
 				page.getContent().stream().map(Person::getId).toList());
 		return PageResponse.from(page.map(person -> personMapper.toResponse(person,
@@ -237,6 +245,11 @@ public class PersonServiceImpl implements PersonService {
 		}
 		if (hasText(request.email())) {
 			String email = request.email().trim().toLowerCase(Locale.ROOT);
+			// El correo de un usuario interno es su usuario de inicio de sesión: desde el ingreso no se cambia
+			if (person.getRole() != Role.CUSTOMER && !email.equals(person.getEmail())) {
+				throw new BusinessRuleException(
+						"Esta persona es un usuario interno; su correo solo lo cambia el administrador en Personal");
+			}
 			if (personRepository.existsByEmailAndIdNot(email, person.getId())) {
 				throw new ConflictException("Ya existe una persona con el correo " + email);
 			}
@@ -286,6 +299,10 @@ public class PersonServiceImpl implements PersonService {
 			person.setPassword(null);
 		} else if (hasPassword) {
 			person.setPassword(passwordEncoder.encode(request.password()));
+			// Si el administrador cambia la contraseña, las sesiones abiertas de esa persona se cierran
+			if (person.getId() != null) {
+				person.setPasswordChangedAt(clock.instant().truncatedTo(ChronoUnit.SECONDS));
+			}
 		} else if (person.getPassword() == null) {
 			throw new BusinessRuleException("La contraseña es obligatoria para los usuarios internos");
 		}

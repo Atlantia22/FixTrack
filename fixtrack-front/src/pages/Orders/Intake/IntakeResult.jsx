@@ -4,7 +4,7 @@ import { useToast } from '../../../hooks/useToast'
 import * as interventionService from '../../../services/interventionService'
 import { getErrorMessage } from '../../../utils/errors'
 import { openPdf } from '../../../utils/files'
-import { formatCurrency, formatDate } from '../../../utils/format'
+import { formatCurrency, formatDelivery } from '../../../utils/format'
 import { PAYMENT_METHOD_LABELS } from '../../../utils/labels'
 import './IntakeResult.css'
 
@@ -66,7 +66,7 @@ export default function IntakeResult({ result }) {
         <div><dt>Cliente</dt><dd>{intervention.customer.fullName}</dd></div>
         <div><dt>Equipo</dt><dd>{intervention.device.brandName} {intervention.device.modelName}</dd></div>
         <div><dt>Técnico</dt><dd>{intervention.technician?.fullName ?? 'Sin asignar'}</dd></div>
-        <div><dt>Entrega estimada</dt><dd>{formatDate(intervention.estimatedDeliveryDate)}</dd></div>
+        <div><dt>Entrega estimada</dt><dd>{formatDelivery(intervention.estimatedDeliveryDate, intervention.estimatedDeliveryTime)}</dd></div>
         <div><dt>Presupuesto</dt><dd>{formatCurrency(intervention.estimatedPrice)}</dd></div>
         <div><dt>Abono</dt><dd>{deposit?.amount ? `${formatCurrency(deposit.amount)} (${PAYMENT_METHOD_LABELS[deposit.method]})` : 'Sin abono'}</dd></div>
       </dl>

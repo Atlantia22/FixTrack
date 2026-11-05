@@ -2,6 +2,7 @@ package com.fixtrack.intervention.entity;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -46,6 +47,13 @@ public class DeliveryDateChange {
 
 	@Column(name = "new_date", nullable = false)
 	private LocalDate newDate;
+
+	// Horas de la reprogramación; null cuando la orden no tenía hora (órdenes antiguas)
+	@Column(name = "previous_time")
+	private LocalTime previousTime;
+
+	@Column(name = "new_time")
+	private LocalTime newTime;
 
 	@Column(name = "reason", nullable = false, length = 500)
 	private String reason;

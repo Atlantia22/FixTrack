@@ -3,6 +3,8 @@ package com.fixtrack.intervention.dto;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import com.fixtrack.intervention.entity.InterventionStatus;
@@ -32,6 +34,8 @@ public record InterventionDetailResponse(
 		BigDecimal totalPrice,
 		ChargesSummary charges,
 		LocalDate estimatedDeliveryDate,
+		LocalTime estimatedDeliveryTime,
+		OffsetDateTime estimatedDeliveryAt,
 		String warrantyOfCode,
 		Integer warrantyDays,
 		LocalDate warrantyUntil,

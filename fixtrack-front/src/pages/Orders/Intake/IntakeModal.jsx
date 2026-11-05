@@ -10,6 +10,7 @@ import { cleanDocumentNumber, documentNumberError } from '../../../utils/documen
 import { getErrorMessage, getFieldErrors } from '../../../utils/errors'
 import { printPdf } from '../../../utils/files'
 import { todayInBogota } from '../../../utils/format'
+import { isFutureDelivery } from '../../../utils/timeRemaining'
 import CustomerSection from './CustomerSection'
 import DepositSection from './DepositSection'
 import DeviceSection from './DeviceSection'
@@ -26,7 +27,7 @@ const EMPTY_DEPOSIT = { amount: '', method: 'CASH' }
 const EMPTY_DEVICE = { deviceId: '', brandId: '', deviceModelId: '', imei: '', serialNumber: '', color: '', observations: '' }
 
 function emptyService() {
-  return { serviceTypes: [], unlockCode: '', problemDescription: '', physicalCondition: '', technicianId: '', estimatedPrice: '', estimatedDeliveryDate: todayInBogota() }
+  return { serviceTypes: [], unlockCode: '', problemDescription: '', physicalCondition: '', technicianId: '', estimatedPrice: '', estimatedDeliveryDate: todayInBogota(), estimatedDeliveryTime: '' }
 }
 
 // Reglas del ingreso: documento buscado, «No tiene» explícito, IMEI en teléfonos y entrega desde hoy
@@ -53,6 +54,10 @@ function validate({ customer, lookup, device, models, service, deposit, today })
   if (!MONEY_PATTERN.test(service.estimatedPrice)) errors.estimatedPrice = 'Escriba el presupuesto, con máximo 2 decimales.'
   if (!service.estimatedDeliveryDate) errors.estimatedDeliveryDate = 'Elija la fecha estimada de entrega.'
   else if (service.estimatedDeliveryDate < today) errors.estimatedDeliveryDate = 'No puede ser anterior a hoy.'
+  if (!service.estimatedDeliveryTime) errors.estimatedDeliveryTime = 'Elija la hora acordada con el cliente.'
+  else if (service.estimatedDeliveryDate >= today && !isFutureDelivery(service.estimatedDeliveryDate, service.estimatedDeliveryTime)) {
+    errors.estimatedDeliveryTime = 'Debe ser posterior a este momento.'
+  }
   if (deposit.amount && (!MONEY_PATTERN.test(deposit.amount) || Number(deposit.amount) <= 0)) {
     errors.depositAmount = 'Escriba un valor mayor que cero, con máximo 2 decimales.'
   }
@@ -85,6 +90,7 @@ function toRequest({ customer, lookup, device, service }) {
     unlockCode: service.unlockCode || null,
     estimatedPrice: Number(service.estimatedPrice),
     estimatedDeliveryDate: service.estimatedDeliveryDate,
+    estimatedDeliveryTime: service.estimatedDeliveryTime,
     technicianId: service.technicianId ? Number(service.technicianId) : null,
   }
 }

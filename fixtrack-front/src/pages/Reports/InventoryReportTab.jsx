@@ -10,6 +10,7 @@ import * as reportService from '../../services/reportService'
 import { formatCurrency } from '../../utils/format'
 import { STOCK_STATUS_LABELS } from '../../utils/labels'
 import { MdInventory, MdAttachMoney, MdWarningAmber, MdRemoveShoppingCart } from 'react-icons/md'
+import SearchSelect from '../../components/SearchSelect/SearchSelect'
 import './InventoryReportTab.css'
 
 const STATUS_COLORS = { OK: 'var(--color-success)', LOW: 'var(--color-warning)', OUT: 'var(--color-danger)' }
@@ -47,18 +48,26 @@ export default function InventoryReportTab() {
       <div className="filters">
         <FormField id="inventory-report-type" label="Tipo">
           {(props) => (
-            <select {...props} className="form-input" value={filters.partTypeId} onChange={(event) => setFilters((current) => ({ ...current, partTypeId: event.target.value }))}>
-              <option value="">Todos</option>
-              {(partTypes.data ?? []).map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
-            </select>
+            <SearchSelect
+              {...props}
+              options={(partTypes.data ?? []).map((type) => ({ value: type.id, label: type.name }))}
+              value={filters.partTypeId}
+              placeholder="Todos"
+              emptyMessage="No hay tipos con ese nombre"
+              onChange={(value) => setFilters((current) => ({ ...current, partTypeId: value }))}
+            />
           )}
         </FormField>
         <FormField id="inventory-report-brand" label="Marca">
           {(props) => (
-            <select {...props} className="form-input" value={filters.brandId} onChange={(event) => setFilters((current) => ({ ...current, brandId: event.target.value }))}>
-              <option value="">Todas</option>
-              {(brands.data ?? []).map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-            </select>
+            <SearchSelect
+              {...props}
+              options={(brands.data ?? []).map((brand) => ({ value: brand.id, label: brand.name }))}
+              value={filters.brandId}
+              placeholder="Todas"
+              emptyMessage="No hay marcas con ese nombre"
+              onChange={(value) => setFilters((current) => ({ ...current, brandId: value }))}
+            />
           )}
         </FormField>
         <label className="inventory-report__check">

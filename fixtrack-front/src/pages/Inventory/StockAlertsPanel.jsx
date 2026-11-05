@@ -1,21 +1,16 @@
-import { useEffect } from 'react'
 import { MdAddBox, MdRefresh, MdWarningAmber } from 'react-icons/md'
+import { TOPICS, useRealtime } from '../../hooks/useRealtime'
 import { useRemoteData } from '../../hooks/useRemoteData'
 import * as sparePartService from '../../services/sparePartService'
 import { STOCK_STATUS_LABELS } from '../../utils/labels'
 import './StockAlertsPanel.css'
 
-const REFRESH_MS = 60_000
-
-// Alertas de stock bajo: se recargan tras cada cambio del inventario (refreshKey) y cada minuto, sin recargar la página
+// Alertas de stock bajo: se recargan tras cada cambio del inventario (refreshKey) y cuando el servidor avisa
+// que un repuesto bajó del mínimo, se agotó o volvió a tener stock (antes se consultaba cada minuto)
 export default function StockAlertsPanel({ refreshKey, onEntry }) {
   const alerts = useRemoteData(sparePartService.listLowStock, [refreshKey])
   const { reload } = alerts
-
-  useEffect(() => {
-    const timer = setInterval(reload, REFRESH_MS)
-    return () => clearInterval(timer)
-  }, [reload])
+  useRealtime(TOPICS.STOCK_ALERTS, () => reload({ silent: true }))
 
   const parts = alerts.data ?? []
   return (
@@ -25,7 +20,7 @@ export default function StockAlertsPanel({ refreshKey, onEntry }) {
           <MdWarningAmber aria-hidden="true" />
           Alertas de stock {alerts.data && <span className="stock-alerts__count">{parts.length}</span>}
         </h2>
-        <button type="button" className="btn btn--ghost btn--icon" aria-label="Actualizar alertas" onClick={reload}>
+        <button type="button" className="btn btn--ghost btn--icon" aria-label="Actualizar alertas" onClick={() => reload()}>
           <MdRefresh aria-hidden="true" />
         </button>
       </header>

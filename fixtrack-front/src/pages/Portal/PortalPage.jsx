@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { MdArrowBack } from 'react-icons/md'
 import { Link } from 'react-router'
 import PublicLayout from '../../components/PublicLayout/PublicLayout'
+import { TOPICS, useRealtime } from '../../hooks/useRealtime'
 import { useToast } from '../../hooks/useToast'
 import * as portalService from '../../services/portalService'
 import { getErrorMessage, getFieldErrors } from '../../utils/errors'
@@ -25,13 +26,25 @@ function validate({ code, accessKey }) {
 
 // Portal público: el cliente consulta su orden con el código y la clave de 4 dígitos del comprobante
 export default function PortalPage() {
-  const { showError } = useToast()
+  const { showError, showInfo } = useToast()
   const [form, setForm] = useState(EMPTY_FORM)
   const [fieldErrors, setFieldErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [order, setOrder] = useState(null)
   // Mensaje visible junto al formulario cuando el código y la clave no coinciden (o hay demasiados intentos)
   const [lookupError, setLookupError] = useState(null)
+  // Código y clave de la consulta vigente: con ellos se sigue la orden en tiempo real
+  const [access, setAccess] = useState(null)
+
+  // Cuando el taller cambia el estado, la orden se vuelve a consultar con la misma clave; el aviso no trae datos
+  useRealtime(access ? TOPICS.order(order?.code) : null, async () => {
+    try {
+      setOrder(await portalService.lookupOrder(access))
+      showInfo('Su orden se actualizó.')
+    } catch {
+      // Si la consulta falla, se queda la información que ya tenía
+    }
+  }, { enabled: Boolean(access && order), headers: { accessKey: access?.accessKey } })
 
   function handleChange(event) {
     const { name, value } = event.target
@@ -52,6 +65,7 @@ export default function PortalPage() {
     setLookupError(null)
     try {
       setOrder(await portalService.lookupOrder(form))
+      setAccess({ ...form })
     } catch (error) {
       setFieldErrors(getFieldErrors(error))
       if (error.response?.status === 404 || error.response?.status === 429) {
@@ -66,6 +80,7 @@ export default function PortalPage() {
 
   function handleNewLookup() {
     setOrder(null)
+    setAccess(null)
     setForm(EMPTY_FORM)
     setFieldErrors({})
   }

@@ -5,6 +5,7 @@ import { useToast } from '../../hooks/useToast'
 import * as partRequestService from '../../services/partRequestService'
 import { getErrorMessage } from '../../utils/errors'
 import { formatCurrency } from '../../utils/format'
+import SearchSelect from '../../components/SearchSelect/SearchSelect'
 import './PartRequestActionModal.css'
 
 const MONEY_PATTERN = /^\d{1,10}(\.\d{1,2})?$/
@@ -67,10 +68,14 @@ export default function PartRequestActionModal({ action, request, parts, supplie
   const partSelect = (label, hint) => (
     <FormField id={`${formId}-part`} label={label} hint={hint}>
       {(props) => (
-        <select {...props} className="form-input" value={form.sparePartId} onChange={(event) => update('sparePartId', event.target.value)}>
-          <option value="">Sin asociar</option>
-          {parts.map((part) => <option key={part.id} value={part.id}>{part.name} · {part.sku}</option>)}
-        </select>
+        <SearchSelect
+          {...props}
+          options={parts.map((part) => ({ value: part.id, label: `${part.name} · ${part.sku}` }))}
+          value={form.sparePartId}
+          placeholder="Sin asociar: escriba el nombre o SKU"
+          emptyMessage="No hay repuestos con ese nombre o SKU"
+          onChange={(value) => update('sparePartId', value)}
+        />
       )}
     </FormField>
   )
@@ -105,10 +110,14 @@ export default function PartRequestActionModal({ action, request, parts, supplie
           <>
             <FormField id={`${formId}-supplier`} label="Proveedor" hint={request.suggestedSupplier ? `Sugerido: ${request.suggestedSupplier.name}${request.suggestedSupplier.leadTimeDays != null ? ` (${request.suggestedSupplier.leadTimeDays} días)` : ''}.` : 'El repuesto no tiene proveedor preferido.'} required>
               {(props) => (
-                <select {...props} className="form-input" value={form.supplierId} onChange={(event) => update('supplierId', event.target.value)}>
-                  <option value="">Elija el proveedor</option>
-                  {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-                </select>
+                <SearchSelect
+                  {...props}
+                  options={suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))}
+                  value={form.supplierId}
+                  placeholder="Escriba el proveedor"
+                  emptyMessage="No hay proveedores con ese nombre"
+                  onChange={(value) => update('supplierId', value)}
+                />
               )}
             </FormField>
             <FormField id={`${formId}-estimated`} label="Costo estimado por unidad" hint={request.suggestedSupplier?.lastCost != null ? `Último costo del preferido: ${formatCurrency(request.suggestedSupplier.lastCost)}.` : undefined}>

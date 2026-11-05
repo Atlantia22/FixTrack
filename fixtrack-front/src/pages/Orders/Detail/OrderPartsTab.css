@@ -20,6 +20,10 @@
   gap: var(--space-3);
 }
 
+.order-parts__other {
+  align-self: flex-start;
+}
+
 .order-parts__add {
   display: flex;
   align-items: flex-end;

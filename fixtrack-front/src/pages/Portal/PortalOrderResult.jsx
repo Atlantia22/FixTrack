@@ -1,5 +1,6 @@
-import { formatCurrency, formatDate, formatDateLong, formatDateTime } from '../../utils/format'
+import { formatCurrency, formatDate, formatDateLong, formatDateTime, formatDelivery } from '../../utils/format'
 import { DEVICE_TYPE_LABELS, OUTCOME_LABELS, STATUS_LABELS } from '../../utils/labels'
+import { orderPrice } from '../../utils/orderPrice'
 import PortalListenButton from './PortalListenButton'
 import PortalReceiptButtons from './PortalReceiptButtons'
 import PortalStatusHero from './PortalStatusHero'
@@ -18,11 +19,13 @@ function warrantyText(order) {
 function spokenSummary(order) {
   const device = [DEVICE_TYPE_LABELS[order.deviceType], order.brandName, order.modelName].filter(Boolean).join(' ')
   return `Equipo: ${device}. Estado: ${STATUS_LABELS[order.status]}. `
-    + `Fecha estimada de entrega: ${formatDateLong(order.estimatedDeliveryDate)}.`
+    + `Fecha estimada de entrega: ${formatDateLong(order.estimatedDeliveryDate)}`
+    + `${order.estimatedDeliveryTime ? `, a las ${order.estimatedDeliveryTime.slice(0, 5)}` : ''}.`
 }
 
 // Resultado de la consulta: estado, equipo, fechas, valores (sin desglose), garantía, historial y garantías anexadas
 export default function PortalOrderResult({ order, accessKey }) {
+  const price = orderPrice({ status: order.status, estimatedPrice: order.estimatedPrice, total: order.total })
   return (
     <div className="portal-order">
       <PortalStatusHero status={order.status} />
@@ -36,12 +39,14 @@ export default function PortalOrderResult({ order, accessKey }) {
           <div className="portal-result__row"><dt>Resultado</dt><dd>{OUTCOME_LABELS[order.repairOutcome]}</dd></div>
         )}
         <div className="portal-result__row"><dt>Ingreso</dt><dd>{formatDateTime(order.receivedAt)}</dd></div>
-        <div className="portal-result__row"><dt>Entrega estimada</dt><dd>{formatDate(order.estimatedDeliveryDate)}</dd></div>
+        <div className="portal-result__row"><dt>Entrega estimada</dt><dd>{formatDelivery(order.estimatedDeliveryDate, order.estimatedDeliveryTime)}</dd></div>
         {order.deliveredAt && (
           <div className="portal-result__row"><dt>Entregado</dt><dd>{formatDateTime(order.deliveredAt)}</dd></div>
         )}
-        <div className="portal-result__row"><dt>Presupuesto</dt><dd>{formatCurrency(order.estimatedPrice)}</dd></div>
-        <div className="portal-result__row"><dt>Total</dt><dd>{formatCurrency(order.total)}</dd></div>
+        <div className="portal-result__row">
+          <dt>{price.priced ? 'Valor final' : 'Valor (presupuesto)'}</dt>
+          <dd>{formatCurrency(price.value)}{!price.priced && <span className="portal-result__note"> · puede cambiar cuando el técnico revise el equipo</span>}</dd>
+        </div>
         <div className="portal-result__row"><dt>Garantía</dt><dd>{warrantyText(order)}</dd></div>
       </dl>
 

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import PageHeader from '../../components/PageHeader/PageHeader'
 import StatCard from '../../components/StatCard/StatCard'
 import { useAuth } from '../../hooks/useAuth'
+import { TOPICS, useRealtime } from '../../hooks/useRealtime'
 import { useRemoteData } from '../../hooks/useRemoteData'
 import * as dashboardService from '../../services/dashboardService'
 import * as personService from '../../services/personService'
@@ -26,6 +27,14 @@ export default function HomePage() {
   const technicianView = user.role === ROLES.TECHNICIAN
   const [selectedId, setSelectedId] = useState(null)
   const dashboard = useRemoteData(dashboardService.getDashboard, [user.id])
+  // Los indicadores se recalculan cuando cambian órdenes, alertas de stock o la disponibilidad de los técnicos
+  useRealtime(TOPICS.INTERVENTIONS, ({ payload }) => {
+    if (!technicianView || payload.technicianId === user.id) dashboard.reload({ silent: true })
+  })
+  useRealtime(TOPICS.STOCK_ALERTS, () => dashboard.reload({ silent: true }))
+  useRealtime(TOPICS.PERSONS, ({ payload }) => {
+    if (payload.role === ROLES.TECHNICIAN) dashboard.reload({ silent: true })
+  }, { enabled: !technicianView })
   // El detalle de la orden necesita la lista de técnicos para reasignar
   const technicians = useRemoteData(
     () => (technicianView ? Promise.resolve({ content: [] }) : personService.searchPeople({ role: ROLES.TECHNICIAN, size: 100 })),

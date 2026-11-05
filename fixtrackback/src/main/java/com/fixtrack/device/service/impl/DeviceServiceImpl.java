@@ -19,6 +19,8 @@ import com.fixtrack.device.repository.DeviceRepository;
 import com.fixtrack.device.service.DeviceModelService;
 import com.fixtrack.device.service.DeviceService;
 import com.fixtrack.person.entity.Person;
+import com.fixtrack.device.events.DeviceEventPublisher;
+import com.fixtrack.infra.realtime.RealtimeEventType;
 
 import lombok.RequiredArgsConstructor;
 
@@ -30,6 +32,7 @@ public class DeviceServiceImpl implements DeviceService {
 	private final DeviceRepository deviceRepository;
 	private final DeviceModelService deviceModelService;
 	private final DeviceMapper deviceMapper;
+	private final DeviceEventPublisher deviceEvents;
 
 	@Override
 	@Transactional(readOnly = true)
@@ -84,10 +87,11 @@ public class DeviceServiceImpl implements DeviceService {
 			if (blankToNull(request.observations()) != null) {
 				device.setObservations(request.observations().trim());
 			}
+			deviceEvents.deviceChanged(RealtimeEventType.UPDATED, device);
 			return device;
 		}
 
-		return deviceRepository.save(Device.builder()
+		Device created = deviceRepository.save(Device.builder()
 				.owner(owner)
 				.deviceModel(model)
 				.imei(imei)
@@ -95,6 +99,8 @@ public class DeviceServiceImpl implements DeviceService {
 				.color(blankToNull(request.color()))
 				.observations(blankToNull(request.observations()))
 				.build());
+		deviceEvents.deviceChanged(RealtimeEventType.CREATED, created);
+		return created;
 	}
 
 	private String blankToNull(String value) {

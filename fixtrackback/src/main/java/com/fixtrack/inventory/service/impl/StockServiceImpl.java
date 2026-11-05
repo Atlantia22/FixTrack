@@ -17,6 +17,7 @@ import com.fixtrack.inventory.repository.SparePartRepository;
 import com.fixtrack.inventory.repository.StockMovementRepository;
 import com.fixtrack.inventory.service.StockService;
 import com.fixtrack.person.entity.Person;
+import com.fixtrack.inventory.events.InventoryEventPublisher;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,6 +28,7 @@ public class StockServiceImpl implements StockService {
 
 	private final SparePartRepository sparePartRepository;
 	private final StockMovementRepository stockMovementRepository;
+	private final InventoryEventPublisher inventoryEvents;
 
 	@Override
 	@Transactional
@@ -89,8 +91,10 @@ public class StockServiceImpl implements StockService {
 	// Actualiza el stock y lo escribe de inmediato para que el bloqueo optimista detecte otro uso simultáneo
 	private StockMovement applyMovement(SparePart part, int quantity, StockMovementType type, BigDecimal unitCost,
 			Intervention intervention, PartRequest partRequest, Person actor, String reason) {
+		int previousStock = part.getStock();
 		part.setStock(part.getStock() + quantity);
 		SparePart saved = sparePartRepository.saveAndFlush(part);
+		inventoryEvents.stockChanged(saved, previousStock);
 		return stockMovementRepository.save(StockMovement.builder()
 				.sparePart(saved)
 				.type(type)

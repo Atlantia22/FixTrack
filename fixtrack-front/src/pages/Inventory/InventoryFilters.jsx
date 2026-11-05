@@ -1,5 +1,6 @@
 import FormField from '../../components/FormField/FormField'
 import { QUALITY_LABELS, STOCK_STATUS_LABELS, toOptions } from '../../utils/labels'
+import SearchSelect from '../../components/SearchSelect/SearchSelect'
 import './InventoryFilters.css'
 
 const SORT_OPTIONS = [
@@ -24,26 +25,38 @@ export default function InventoryFilters({ value, partTypes, brands, models, onC
       </FormField>
       <FormField id="inventory-type" label="Tipo">
         {(props) => (
-          <select {...props} className="form-input" value={value.partTypeId} onChange={(event) => onChange('partTypeId', event.target.value)}>
-            <option value="">Todos</option>
-            {partTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
-          </select>
+          <SearchSelect
+            {...props}
+            options={partTypes.map((type) => ({ value: type.id, label: type.name }))}
+            value={value.partTypeId}
+            placeholder="Todos"
+            emptyMessage="No hay tipos con ese nombre"
+            onChange={(selected) => onChange('partTypeId', selected)}
+          />
         )}
       </FormField>
       <FormField id="inventory-brand" label="Marca">
         {(props) => (
-          <select {...props} className="form-input" value={value.brandId} onChange={(event) => onChange('brandId', event.target.value)}>
-            <option value="">Todas</option>
-            {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-          </select>
+          <SearchSelect
+            {...props}
+            options={brands.map((brand) => ({ value: brand.id, label: brand.name }))}
+            value={value.brandId}
+            placeholder="Todas"
+            emptyMessage="No hay marcas con ese nombre"
+            onChange={(selected) => onChange('brandId', selected)}
+          />
         )}
       </FormField>
       <FormField id="inventory-model" label="Modelo">
         {(props) => (
-          <select {...props} className="form-input" value={value.deviceModelId} onChange={(event) => onChange('deviceModelId', event.target.value)}>
-            <option value="">Todos</option>
-            {brandModels.map((model) => <option key={model.id} value={model.id}>{model.brandName} {model.name}</option>)}
-          </select>
+          <SearchSelect
+            {...props}
+            options={brandModels.map((model) => ({ value: model.id, label: `${model.brandName} ${model.name}` }))}
+            value={value.deviceModelId}
+            placeholder="Todos"
+            emptyMessage="No hay modelos con ese nombre"
+            onChange={(selected) => onChange('deviceModelId', selected)}
+          />
         )}
       </FormField>
       <FormField id="inventory-quality" label="Calidad">

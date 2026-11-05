@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { UNAUTHORIZED_EVENT } from '../config/apiConfig'
+import { connectRealtime, disconnectRealtime } from '../config/realtimeClient'
 import * as authService from '../services/authService'
 import { AuthContext } from './AuthContext'
 import { clearSession, getSession, saveSession } from './session'
@@ -38,6 +39,16 @@ export function AuthProvider({ children }) {
     setEndedByUser(true)
     setSession(null)
   }, [])
+
+  // Canal en tiempo real con el token de la sesión; al cerrar sesión o vencer el token se corta
+  const authorization = session?.authorization ?? null
+  useEffect(() => {
+    if (authorization) {
+      connectRealtime(authorization)
+      return () => disconnectRealtime()
+    }
+    return undefined
+  }, [authorization])
 
   useEffect(() => {
     const handleUnauthorized = () => {

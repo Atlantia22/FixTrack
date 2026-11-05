@@ -5,6 +5,7 @@ import { useRemoteData } from '../../hooks/useRemoteData'
 import * as stockMovementService from '../../services/stockMovementService'
 import { formatCurrency, formatDateTime } from '../../utils/format'
 import { STOCK_MOVEMENT_LABELS, toOptions } from '../../utils/labels'
+import SearchSelect from '../../components/SearchSelect/SearchSelect'
 import './StockMovementsPanel.css'
 
 const TONES = { IN_PURCHASE: 'tag--success', RETURN: 'tag--success', OUT_REPAIR: 'tag--warning', ADJUSTMENT: '' }
@@ -36,10 +37,14 @@ export default function StockMovementsPanel({ parts, initialPartId }) {
       <div className="filters">
         <FormField id="movements-part" label="Repuesto">
           {(props) => (
-            <select {...props} className="form-input" value={filters.sparePartId} onChange={(event) => change('sparePartId', event.target.value)}>
-              <option value="">Todos</option>
-              {parts.map((part) => <option key={part.id} value={part.id}>{part.name} · {part.sku}</option>)}
-            </select>
+            <SearchSelect
+              {...props}
+              options={parts.map((part) => ({ value: part.id, label: `${part.name} · ${part.sku}` }))}
+              value={filters.sparePartId}
+              placeholder="Todos"
+              emptyMessage="No hay repuestos con ese nombre o SKU"
+              onChange={(value) => change('sparePartId', value)}
+            />
           )}
         </FormField>
         <FormField id="movements-type" label="Tipo">

@@ -32,6 +32,7 @@ import com.fixtrack.intervention.entity.InterventionStatus;
 import com.fixtrack.intervention.service.InterventionPricingService;
 import com.fixtrack.person.entity.Role;
 import com.fixtrack.person.service.PersonService;
+import com.fixtrack.intervention.events.InterventionEventPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceImplTest {
@@ -50,6 +51,9 @@ class PaymentServiceImplTest {
 
 	@Spy
 	private PaymentMapper paymentMapper;
+
+	@Mock
+	private InterventionEventPublisher interventionEvents;
 
 	@InjectMocks
 	private PaymentServiceImpl paymentService;

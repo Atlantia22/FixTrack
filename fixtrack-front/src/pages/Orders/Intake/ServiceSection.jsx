@@ -1,10 +1,11 @@
 import FormField from '../../../components/FormField/FormField'
 import UnlockCodeField from '../../../components/UnlockCodeField/UnlockCodeField'
+import { currentTimeInBogota } from '../../../utils/format'
 import { AVAILABILITY_LABELS } from '../../../utils/labels'
 import DamagePicker from './DamagePicker'
 import './ServiceSection.css'
 
-// Sección del servicio: daños reportados, desbloqueo, problema, estado físico, técnico, presupuesto y entrega
+// Sección del servicio: daños reportados, desbloqueo, problema, estado físico, técnico, presupuesto y fecha y hora de entrega
 export default function ServiceSection({ value, errors, technicians, minDate, onChange }) {
   return (
     <fieldset className="intake-section">
@@ -39,6 +40,18 @@ export default function ServiceSection({ value, errors, technicians, minDate, on
         </FormField>
         <FormField id="intake-delivery" label="Fecha estimada de entrega" error={errors.estimatedDeliveryDate} required>
           {(props) => <input {...props} type="date" className="form-input" min={minDate} value={value.estimatedDeliveryDate} onChange={(event) => onChange('estimatedDeliveryDate', event.target.value)} />}
+        </FormField>
+        <FormField id="intake-delivery-time" label="Hora estimada de entrega" error={errors.estimatedDeliveryTime} hint="Hora acordada con el cliente; puede ser hoy mismo." required>
+          {(props) => (
+            <input
+              {...props}
+              type="time"
+              className="form-input"
+              min={value.estimatedDeliveryDate === minDate ? currentTimeInBogota() : undefined}
+              value={value.estimatedDeliveryTime}
+              onChange={(event) => onChange('estimatedDeliveryTime', event.target.value)}
+            />
+          )}
         </FormField>
       </div>
     </fieldset>

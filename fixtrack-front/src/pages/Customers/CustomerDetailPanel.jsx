@@ -12,7 +12,7 @@ import * as deviceService from '../../services/deviceService'
 import * as interventionService from '../../services/interventionService'
 import * as personService from '../../services/personService'
 import { getErrorMessage } from '../../utils/errors'
-import { displayOrNT, formatDate, formatDateTime } from '../../utils/format'
+import { displayOrNT, formatDateTime, formatDelivery } from '../../utils/format'
 import { DEVICE_TYPE_LABELS, DOCUMENT_TYPE_LABELS, ROLES } from '../../utils/labels'
 import CustomerContactModal from './CustomerContactModal'
 import './CustomerDetailPanel.css'
@@ -109,7 +109,7 @@ export default function CustomerDetailPanel({ customer, onClose, onUpdated, onDe
                   <StatusBadge status={order.status} />
                 </span>
                 <span className="customer-detail__meta">
-                  {order.device} · Ingreso {formatDateTime(order.receivedAt)} · Entrega estimada {formatDate(order.estimatedDeliveryDate)}
+                  {order.device} · Ingreso {formatDateTime(order.receivedAt)} · Entrega estimada {formatDelivery(order.estimatedDeliveryDate, order.estimatedDeliveryTime)}
                 </span>
               </li>
           ))}

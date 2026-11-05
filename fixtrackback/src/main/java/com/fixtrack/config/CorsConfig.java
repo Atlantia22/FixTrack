@@ -25,7 +25,18 @@ public class CorsConfig {
 		config.setExposedHeaders(List.of("Content-Disposition"));
 		config.setMaxAge(3600L);
 
+		// SockJS pide /ws/info y sus transportes con credenciales; sin Allow-Credentials el navegador bloquea la conexión.
+		// La sesión del canal no usa cookies (el token va en el CONNECT), así que esto no abre la API
+		CorsConfiguration realtime = new CorsConfiguration();
+		realtime.setAllowedOrigins(allowedOrigins);
+		realtime.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+		realtime.setAllowedHeaders(List.of("*"));
+		realtime.setAllowCredentials(true);
+		realtime.setMaxAge(3600L);
+
+		// Gana la primera regla que coincide: /ws/** va antes que la general
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration("/ws/**", realtime);
 		source.registerCorsConfiguration("/**", config);
 		return source;
 	}

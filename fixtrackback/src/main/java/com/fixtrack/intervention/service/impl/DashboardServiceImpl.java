@@ -99,12 +99,12 @@ public class DashboardServiceImpl implements DashboardService {
 	// Técnico: sus órdenes abiertas, atrasadas, en proceso y esperando repuestos, y la lista por fecha de entrega
 	private TechnicianDashboard technicianDashboard(AuthenticatedUser user) {
 		OrderCounters counters = countOrders(user.id());
-		LocalDate today = today();
+		LocalDateTime now = LocalDateTime.now(clock);
 		InterventionFilter mine = InterventionFilter.ofTechnician(user.id(), null, null, false);
 		List<InterventionSummaryResponse> openOrders = interventionRepository
-				.findAll(InterventionSpecifications.matching(mine, null, today, null), PageRequest.of(0,
-						TECHNICIAN_OPEN_ORDERS, Sort.by("estimatedDeliveryDate", "receivedAt")))
-				.map(intervention -> interventionMapper.toSummary(intervention, today))
+				.findAll(InterventionSpecifications.matching(mine, null, now, null), PageRequest.of(0,
+						TECHNICIAN_OPEN_ORDERS, Sort.by("estimatedDeliveryDate", "estimatedDeliveryTime", "receivedAt")))
+				.map(intervention -> interventionMapper.toSummary(intervention, now))
 				.getContent();
 		return new TechnicianDashboard(user.role(),
 				new TechnicianCounters(counters.open(), counters.overdue(), counters.inProgress(),
@@ -114,21 +114,23 @@ public class DashboardServiceImpl implements DashboardService {
 
 	// No reclamadas: listas desde hace más de UNCLAIMED_ALERT_DAYS días
 	private OrderCounters countOrders(Long technicianId) {
-		LocalDate today = today();
-		LocalDateTime unclaimedBefore = LocalDateTime.now(clock)
-				.minusDays(settingService.getIntValue(SettingKey.UNCLAIMED_ALERT_DAYS));
+		LocalDateTime now = LocalDateTime.now(clock);
+		LocalDate today = now.toLocalDate();
+		LocalDateTime unclaimedBefore = now.minusDays(settingService.getIntValue(SettingKey.UNCLAIMED_ALERT_DAYS));
+		// Atrasadas al minuto: la hora actual se compara con la hora acordada de las que vencen hoy
 		return interventionRepository.countForDashboard(technicianId, today.atStartOfDay(),
-				today.plusDays(1).atStartOfDay(), today, unclaimedBefore, OVERDUE_CANDIDATES, IN_PROGRESS, CLOSED,
+				today.plusDays(1).atStartOfDay(), today, now.toLocalTime(), unclaimedBefore, OVERDUE_CANDIDATES,
+				IN_PROGRESS, CLOSED,
 				InterventionStatus.WAITING_PARTS, InterventionStatus.READY);
 	}
 
 	private List<InterventionSummaryResponse> recentOrders() {
-		LocalDate today = today();
+		LocalDateTime now = LocalDateTime.now(clock);
 		InterventionFilter all = new InterventionFilter(null, null, null, null, null, null, null, null, false, false, false);
 		return interventionRepository
-				.findAll(InterventionSpecifications.matching(all, null, today, null),
+				.findAll(InterventionSpecifications.matching(all, null, now, null),
 						PageRequest.of(0, RECENT_ORDERS, Sort.by(Sort.Direction.DESC, "receivedAt", "id")))
-				.map(intervention -> interventionMapper.toSummary(intervention, today))
+				.map(intervention -> interventionMapper.toSummary(intervention, now))
 				.getContent();
 	}
 

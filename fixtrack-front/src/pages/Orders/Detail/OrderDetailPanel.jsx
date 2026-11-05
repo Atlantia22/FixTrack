@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import SidePanel from '../../../components/SidePanel/SidePanel'
 import StatusBadge from '../../../components/StatusBadge/StatusBadge'
+import { TOPICS, useRealtime } from '../../../hooks/useRealtime'
 import { useRemoteData } from '../../../hooks/useRemoteData'
 import * as interventionService from '../../../services/interventionService'
 import OrderDiagnosisTab from './OrderDiagnosisTab'
@@ -26,6 +27,11 @@ export default function OrderDetailPanel({ orderId, technicians, onClose, onChan
   const [activeTab, setActiveTab] = useState('info')
   const detail = useRemoteData(() => interventionService.getIntervention(orderId), [orderId])
   const order = detail.data
+
+  // Si otra persona cambia esta orden (estado, técnico, repuestos, pagos), el detalle se actualiza sin cerrarse
+  useRealtime(TOPICS.INTERVENTIONS, ({ id }) => {
+    if (id === orderId) detail.reload({ silent: true })
+  })
 
   // Tras cualquier cambio se recarga el detalle y el listado de fondo
   function handleUpdated() {
@@ -54,7 +60,7 @@ export default function OrderDetailPanel({ orderId, technicians, onClose, onChan
       {!order && detail.loading && <p className="text-muted">Cargando…</p>}
       {detail.error && !order && <p className="form-error">{detail.error}</p>}
       {order && activeTab === 'info' && (
-        <OrderInfoTab key={`${order.id}-${order.estimatedDeliveryDate}-${order.technician?.id}`} order={order} technicians={technicians} onUpdated={handleUpdated} />
+        <OrderInfoTab key={`${order.id}-${order.estimatedDeliveryDate}-${order.estimatedDeliveryTime}-${order.technician?.id}`} order={order} technicians={technicians} onUpdated={handleUpdated} />
       )}
       {order && activeTab === 'diagnosis' && (
         <OrderDiagnosisTab key={`${order.id}-${order.status}-${order.repairOutcome}`} order={order} onUpdated={handleUpdated} />

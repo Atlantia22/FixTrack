@@ -2,6 +2,7 @@ package com.fixtrack.intervention.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 import com.fixtrack.device.dto.DeviceRequest;
@@ -25,5 +26,6 @@ public record CreateInterventionRequest(
 		@Size(max = 100) String unlockCode,
 		@NotNull @DecimalMin("0.00") @Digits(integer = 10, fraction = 2) BigDecimal estimatedPrice,
 		@NotNull LocalDate estimatedDeliveryDate,
+		@NotNull LocalTime estimatedDeliveryTime,
 		Long technicianId) {
 }

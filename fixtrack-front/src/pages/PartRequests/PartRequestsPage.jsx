@@ -5,6 +5,7 @@ import FormField from '../../components/FormField/FormField'
 import PageHeader from '../../components/PageHeader/PageHeader'
 import PartRequestStatusTag from '../../components/PartRequestStatusTag/PartRequestStatusTag'
 import { useAuth } from '../../hooks/useAuth'
+import { TOPICS, useRealtime } from '../../hooks/useRealtime'
 import { useRemoteData } from '../../hooks/useRemoteData'
 import * as partRequestService from '../../services/partRequestService'
 import * as sparePartService from '../../services/sparePartService'
@@ -33,6 +34,10 @@ export default function PartRequestsPage() {
     () => (technicianView ? partRequestService.listMine({ status, page }) : partRequestService.searchPartRequests({ status, page })),
     [technicianView, status, page],
   )
+  // El técnico ve el avance de sus solicitudes y el coordinador las nuevas, sin recargar la página
+  useRealtime(TOPICS.PART_REQUESTS, ({ payload }) => {
+    if (!technicianView || payload.requestedById === user.id) requests.reload({ silent: true })
+  })
   const parts = useRemoteData(() => (technicianView ? Promise.resolve({ content: [] }) : sparePartService.searchSpareParts({ size: 500 })), [technicianView])
   const suppliers = useRemoteData(() => (technicianView ? Promise.resolve({ content: [] }) : supplierService.searchSuppliers({ size: 200 })), [technicianView])
 

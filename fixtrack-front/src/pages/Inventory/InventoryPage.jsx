@@ -6,6 +6,7 @@ import DataTable from '../../components/DataTable/DataTable'
 import PageHeader from '../../components/PageHeader/PageHeader'
 import Tabs from '../../components/Tabs/Tabs'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { TOPICS, useRealtime } from '../../hooks/useRealtime'
 import { useRemoteData } from '../../hooks/useRemoteData'
 import { useToast } from '../../hooks/useToast'
 import * as catalogService from '../../services/catalogService'
@@ -62,6 +63,21 @@ export default function InventoryPage() {
 
   const query = { ...filters, search: debouncedSearch, stockStatus: filters.alertsOnly ? '' : filters.stockStatus }
   const parts = useRemoteData(() => sparePartService.searchSpareParts({ ...query, page }), [page, ...Object.values(query)])
+  // Un movimiento de stock solo cambia esa fila; altas, ediciones y bajas recargan el listado sin parpadeo
+  useRealtime(TOPICS.SPARE_PARTS, ({ type, id, payload }) => {
+    if (type === 'STOCK_CHANGED') {
+      parts.mutate((current) => ({
+        ...current,
+        content: current.content.map((part) => (part.id === id
+          ? { ...part, stock: payload.stock, minStock: payload.minStock, stockStatus: payload.stockStatus }
+          : part)),
+      }))
+      if (filters.alertsOnly || filters.stockStatus) parts.reload({ silent: true })
+      return
+    }
+    parts.reload({ silent: true })
+    allParts.reload({ silent: true })
+  })
   const partTypes = useRemoteData(catalogService.listPartTypes, [])
   const brands = useRemoteData(catalogService.listBrands, [])
   const models = useRemoteData(() => catalogService.listDeviceModels(), [])

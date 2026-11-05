@@ -63,13 +63,14 @@ public class PortalServiceImpl implements PortalService {
 				.findByWarrantyOfIdOrderByWarrantyNumberAsc(original.getId()).stream()
 				.map(warranty -> new PortalWarrantyResponse(InterventionCode.of(warranty), warranty.getStatus(),
 						warranty.getRepairOutcome(), warranty.getReceivedAt(), warranty.getEstimatedDeliveryDate(),
-						warranty.getDeliveredAt(), timeline(warranty)))
+						warranty.getEstimatedDeliveryTime(), warranty.getDeliveredAt(), timeline(warranty)))
 				.toList();
 		DeviceModel model = original.getDevice().getDeviceModel();
 		LocalDate until = original.getWarrantyUntil();
 		return new PortalOrderResponse(InterventionCode.of(original), model.getDeviceType(), model.getBrand().getName(),
 				model.getName(), original.getStatus(), original.getRepairOutcome(), original.getReceivedAt(),
-				original.getEstimatedDeliveryDate(), original.getDeliveredAt(), original.getEstimatedPrice(),
+				original.getEstimatedDeliveryDate(), original.getEstimatedDeliveryTime(), original.getDeliveredAt(),
+				original.getEstimatedPrice(),
 				pricingService.amountDue(original), original.getWarrantyDays(), until,
 				until != null && !LocalDate.now(clock).isAfter(until), timeline(original), warranties);
 	}
@@ -86,6 +87,13 @@ public class PortalServiceImpl implements PortalService {
 	public ReceiptFile deliveryReceipt(PortalLookupRequest request, String clientIp) {
 		Access access = authenticate(request, clientIp);
 		return receiptService.deliveryReceipt(access.requested().getId(), true);
+	}
+
+	// Misma validación de código, clave e intentos que la consulta; el canal público es el de la orden original
+	@Override
+	@Transactional(noRollbackFor = NotFoundException.class)
+	public String authorizeFollow(PortalLookupRequest request, String clientIp) {
+		return InterventionCode.of(authenticate(request, clientIp).original());
 	}
 
 	// Código y clave contra la orden original bloqueada; con 5 fallos el código queda bloqueado 15 minutos

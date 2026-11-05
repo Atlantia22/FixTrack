@@ -1,6 +1,7 @@
 package com.fixtrack.intervention.mapper;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -29,32 +30,34 @@ import com.fixtrack.person.entity.Person;
 @Component
 public class InterventionMapper {
 
-	public InterventionSummaryResponse toSummary(Intervention intervention, LocalDate today) {
+	public InterventionSummaryResponse toSummary(Intervention intervention, LocalDateTime now) {
 		Person customer = intervention.getDevice().getOwner();
 		return new InterventionSummaryResponse(
 				intervention.getId(),
 				InterventionCode.of(intervention),
 				intervention.getStatus(),
-				isOverdue(intervention, today),
+				isOverdue(intervention, now),
 				customer.getFullName(),
 				customer.getDocumentType() + " " + customer.getDocumentNumber(),
 				deviceName(intervention.getDevice()),
 				intervention.getTechnician() == null ? null : intervention.getTechnician().getFullName(),
 				intervention.getEstimatedDeliveryDate(),
+				intervention.getEstimatedDeliveryTime(),
+				DeliveryDeadline.at(intervention.getEstimatedDeliveryDate(), intervention.getEstimatedDeliveryTime()),
 				intervention.getReceivedAt());
 	}
 
 	// Qué ve quien consulta (contraseña de desbloqueo, mano de obra) y las transiciones válidas los decide el servicio
 	public InterventionDetailResponse toDetail(Intervention intervention, List<InterventionFinding> findings,
 			boolean showUnlockCode, boolean showBreakdown, ChargesSummary charges,
-			List<InterventionStatus> nextStatuses, List<Intervention> warranties, LocalDate today) {
+			List<InterventionStatus> nextStatuses, List<Intervention> warranties, LocalDateTime now) {
 		Person customer = intervention.getDevice().getOwner();
 		Device device = intervention.getDevice();
 		return new InterventionDetailResponse(
 				intervention.getId(),
 				InterventionCode.of(intervention),
 				intervention.getStatus(),
-				isOverdue(intervention, today),
+				isOverdue(intervention, now),
 				new CustomerSummary(customer.getId(), customer.getDocumentType(), customer.getDocumentNumber(),
 						customer.getFullName(), customer.getPhone(), customer.getEmail()),
 				new DeviceSummary(device.getId(), device.getDeviceModel().getBrand().getName(),
@@ -75,6 +78,8 @@ public class InterventionMapper {
 				intervention.getTotalPrice(),
 				charges,
 				intervention.getEstimatedDeliveryDate(),
+				intervention.getEstimatedDeliveryTime(),
+				DeliveryDeadline.at(intervention.getEstimatedDeliveryDate(), intervention.getEstimatedDeliveryTime()),
 				intervention.getWarrantyOf() == null ? null : InterventionCode.of(intervention.getWarrantyOf()),
 				intervention.getWarrantyDays(),
 				intervention.getWarrantyUntil(),
@@ -92,13 +97,13 @@ public class InterventionMapper {
 	}
 
 	// noContact cuando el cliente no dejó celular ni correo
-	public UnclaimedOrderResponse toUnclaimed(Intervention intervention, LocalDate today) {
+	public UnclaimedOrderResponse toUnclaimed(Intervention intervention, LocalDateTime now) {
 		Person customer = intervention.getDevice().getOwner();
 		return new UnclaimedOrderResponse(intervention.getId(), InterventionCode.of(intervention),
 				customer.getFullName(), customer.getDocumentType() + " " + customer.getDocumentNumber(),
 				deviceName(intervention.getDevice()), customer.getPhone(), customer.getEmail(),
 				customer.getPhone() == null && customer.getEmail() == null, intervention.getReadyAt(),
-				ChronoUnit.DAYS.between(intervention.getReadyAt().toLocalDate(), today));
+				ChronoUnit.DAYS.between(intervention.getReadyAt().toLocalDate(), now.toLocalDate()));
 	}
 
 	public DeliveredOrderResponse toDelivered(Intervention intervention) {
@@ -108,8 +113,9 @@ public class InterventionMapper {
 	}
 
 	public DeliveryDateChangeResponse toDeliveryChange(DeliveryDateChange change) {
-		return new DeliveryDateChangeResponse(change.getId(), change.getPreviousDate(), change.getNewDate(),
-				change.getReason(), toRef(change.getChangedBy()), change.getChangedAt());
+		return new DeliveryDateChangeResponse(change.getId(), change.getPreviousDate(), change.getPreviousTime(),
+				change.getNewDate(), change.getNewTime(), change.getReason(), toRef(change.getChangedBy()),
+				change.getChangedAt());
 	}
 
 	public StatusHistoryResponse toHistory(InterventionStatusHistory history) {
@@ -123,8 +129,9 @@ public class InterventionMapper {
 				finding.getRespondedAt(), finding.getCreatedAt());
 	}
 
-	private boolean isOverdue(Intervention intervention, LocalDate today) {
-		return intervention.getStatus().canBeOverdue() && intervention.getEstimatedDeliveryDate().isBefore(today);
+	private boolean isOverdue(Intervention intervention, LocalDateTime now) {
+		return DeliveryDeadline.isOverdue(intervention.getStatus(), intervention.getEstimatedDeliveryDate(),
+				intervention.getEstimatedDeliveryTime(), now);
 	}
 
 	private String deviceName(Device device) {

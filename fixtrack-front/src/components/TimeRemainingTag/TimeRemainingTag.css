@@ -1,0 +1,38 @@
+/* Tiempo restante: verde (> 24 h), amarillo (≤ 24 h), rojo (≤ 2 h), rojo oscuro (vencido), gris (cerrada o sin hora) */
+.time-remaining {
+  display: inline-flex;
+  padding: 0.125rem var(--space-2);
+  border: 0.0625rem solid transparent;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.time-remaining--ok {
+  background-color: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.time-remaining--soon {
+  background-color: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.time-remaining--urgent {
+  background-color: var(--color-danger-soft);
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.time-remaining--overdue {
+  background-color: var(--color-danger);
+  color: var(--color-text-inverse);
+}
+
+.time-remaining--closed,
+.time-remaining--none {
+  background-color: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  border-color: var(--color-border);
+}

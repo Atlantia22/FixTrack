@@ -77,6 +77,8 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
 						.requestMatchers("/api/public/**", "/error").permitAll()
+						// El handshake WebSocket no lleva token; StompAuthChannelInterceptor lo valida en el CONNECT
+						.requestMatchers("/ws/**").permitAll()
 						.requestMatchers("/api/**").authenticated()
 						.anyRequest().denyAll());
 		return http.build();

@@ -5,7 +5,8 @@ import UnlockCodeField from '../../../components/UnlockCodeField/UnlockCodeField
 import { useToast } from '../../../hooks/useToast'
 import * as interventionService from '../../../services/interventionService'
 import { getErrorMessage, getFieldErrors } from '../../../utils/errors'
-import { formatDate, todayInBogota } from '../../../utils/format'
+import { currentTimeInBogota, formatDate, todayInBogota } from '../../../utils/format'
+import { isFutureDelivery } from '../../../utils/timeRemaining'
 import { AVAILABILITY_LABELS, SERVICE_TYPE_LABELS, toOptions } from '../../../utils/labels'
 import ContactField from '../../../components/ContactField/ContactField'
 import './WarrantyModal.css'
@@ -20,6 +21,7 @@ function initialForm(order) {
     physicalCondition: '',
     unlockCode: '',
     estimatedDeliveryDate: todayInBogota(),
+    estimatedDeliveryTime: '',
     technicianId: order.technician ? String(order.technician.id) : '',
     phone: order.customer.phone ?? '',
     noPhone: !order.customer.phone,
@@ -34,6 +36,10 @@ function validate(form, today) {
   if (!form.problemDescription.trim()) errors.problemDescription = 'Describa la falla que reporta el cliente.'
   if (!form.physicalCondition.trim()) errors.physicalCondition = 'Describa el estado físico.'
   if (!form.estimatedDeliveryDate || form.estimatedDeliveryDate < today) errors.estimatedDeliveryDate = 'Desde hoy en adelante.'
+  if (!form.estimatedDeliveryTime) errors.estimatedDeliveryTime = 'Elija la hora acordada.'
+  else if (!errors.estimatedDeliveryDate && !isFutureDelivery(form.estimatedDeliveryDate, form.estimatedDeliveryTime)) {
+    errors.estimatedDeliveryTime = 'Debe ser posterior a este momento.'
+  }
   if (!form.noPhone && !PHONE_PATTERN.test(form.phone)) errors.phone = 'Entre 7 y 10 dígitos, o marque «No tiene».'
   if (!form.noEmail && !EMAIL_PATTERN.test(form.email.trim())) errors.email = 'Escriba un correo válido o marque «No tiene».'
   return errors
@@ -69,6 +75,7 @@ export default function WarrantyModal({ order, technicians, onClose, onCreated }
         physicalCondition: form.physicalCondition.trim(),
         unlockCode: form.unlockCode || null,
         estimatedDeliveryDate: form.estimatedDeliveryDate,
+        estimatedDeliveryTime: form.estimatedDeliveryTime,
         technicianId: form.technicianId ? Number(form.technicianId) : null,
         phone: form.noPhone ? null : form.phone,
         noPhone: form.noPhone,
@@ -164,6 +171,18 @@ export default function WarrantyModal({ order, technicians, onClose, onCreated }
             </FormField>
             <FormField id={`${formId}-delivery`} label="Fecha estimada de entrega" error={errors.estimatedDeliveryDate} required>
               {(props) => <input {...props} type="date" className="form-input" min={today} value={form.estimatedDeliveryDate} onChange={(event) => update('estimatedDeliveryDate', event.target.value)} />}
+            </FormField>
+            <FormField id={`${formId}-delivery-time`} label="Hora estimada de entrega" error={errors.estimatedDeliveryTime} required>
+              {(props) => (
+                <input
+                  {...props}
+                  type="time"
+                  className="form-input"
+                  min={form.estimatedDeliveryDate === today ? currentTimeInBogota() : undefined}
+                  value={form.estimatedDeliveryTime}
+                  onChange={(event) => update('estimatedDeliveryTime', event.target.value)}
+                />
+              )}
             </FormField>
           </div>
         </fieldset>

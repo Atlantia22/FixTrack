@@ -7,6 +7,7 @@ import * as partRequestService from '../../../services/partRequestService'
 import { getErrorMessage, getFieldErrors } from '../../../utils/errors'
 import { formatCurrency } from '../../../utils/format'
 import { QUALITY_LABELS, toOptions } from '../../../utils/labels'
+import SearchSelect from '../../../components/SearchSelect/SearchSelect'
 import './NewSparePartForm.css'
 
 const MONEY_PATTERN = /^\d{1,10}(\.\d{1,2})?$/
@@ -122,10 +123,14 @@ export default function NewSparePartForm({ order, partTypes, initialPartTypeId, 
       <div className="new-part__grid">
         <FormField id={`${formId}-type`} label="Tipo" error={errors.partTypeId} required>
           {(props) => (
-            <select {...props} className="form-input" value={form.partTypeId} onChange={(event) => update('partTypeId', event.target.value)}>
-              <option value="">Elija el tipo</option>
-              {partTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
-            </select>
+            <SearchSelect
+              {...props}
+              options={partTypes.map((type) => ({ value: type.id, label: type.name }))}
+              value={form.partTypeId}
+              placeholder="Escriba el tipo"
+              emptyMessage="No hay tipos con ese nombre"
+              onChange={(value) => update('partTypeId', value)}
+            />
           )}
         </FormField>
         <FormField id={`${formId}-quality`} label="Calidad" hint="Opcional.">
@@ -153,7 +158,7 @@ export default function NewSparePartForm({ order, partTypes, initialPartTypeId, 
         <FormField id={`${formId}-cost`} label="Costo por unidad" error={errors.costPrice} required>
           {(props) => <input {...props} className="form-input" inputMode="decimal" value={form.costPrice} onChange={(event) => update('costPrice', event.target.value.replace(/[^\d.]/g, ''))} />}
         </FormField>
-        <FormField id={`${formId}-sale`} label="Precio de venta" error={errors.salePrice} required>
+        <FormField id={`${formId}-sale`} label="Precio de venta" error={errors.salePrice} hint="Con instalación incluida." required>
           {(props) => <input {...props} className="form-input" inputMode="decimal" value={form.salePrice} onChange={(event) => update('salePrice', event.target.value.replace(/[^\d.]/g, ''))} />}
         </FormField>
         <FormField id={`${formId}-quantity`} label={haveIt ? 'Cantidad conseguida' : 'Cantidad'} error={errors.quantity ?? errors.quantityObtained} required>

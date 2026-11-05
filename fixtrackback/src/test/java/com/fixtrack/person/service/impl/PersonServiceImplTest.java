@@ -3,6 +3,7 @@ package com.fixtrack.person.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 import java.util.Optional;
 
@@ -24,6 +25,8 @@ import com.fixtrack.person.entity.Role;
 import com.fixtrack.person.mapper.PersonMapper;
 import com.fixtrack.person.repository.PersonRepository;
 import com.fixtrack.person.repository.PersonSpecialtyRepository;
+import com.fixtrack.infra.realtime.RealtimeEventType;
+import com.fixtrack.person.events.PersonEventPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class PersonServiceImplTest {
@@ -37,12 +40,25 @@ class PersonServiceImplTest {
 	@Spy
 	private PersonMapper personMapper;
 
+	@Mock
+	private PersonEventPublisher personEvents;
+
 	@InjectMocks
 	private PersonServiceImpl personService;
 
 	private Person person(Role role) {
 		return Person.builder().id(7L).documentType(DocumentType.CC).documentNumber("43567890").fullName("Ana Ríos")
 				.phone("3001234567").email("ana@correo.co").role(role).build();
+	}
+
+	@Test
+	void shouldPublishDeactivationOfAPerson() {
+		Person customer = person(Role.CUSTOMER);
+		given(personRepository.findById(7L)).willReturn(Optional.of(customer));
+
+		personService.deactivate(7L);
+
+		verify(personEvents).personChanged(RealtimeEventType.DEACTIVATED, customer);
 	}
 
 	@Test

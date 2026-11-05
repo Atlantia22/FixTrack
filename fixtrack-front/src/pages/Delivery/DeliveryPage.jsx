@@ -4,6 +4,7 @@ import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog'
 import DataTable from '../../components/DataTable/DataTable'
 import FormField from '../../components/FormField/FormField'
 import PageHeader from '../../components/PageHeader/PageHeader'
+import { TOPICS, useRealtime } from '../../hooks/useRealtime'
 import { useRemoteData } from '../../hooks/useRemoteData'
 import { useToast } from '../../hooks/useToast'
 import * as interventionService from '../../services/interventionService'
@@ -22,6 +23,12 @@ export default function DeliveryPage() {
   const ready = useRemoteData(interventionService.listReadyForDelivery, [])
   const unclaimed = useRemoteData(interventionService.listUnclaimed, [])
   const delivered = useRemoteData(interventionService.listDeliveredToday, [])
+  // Una orden que pasa a lista, recibe un pago o se entrega en otra pantalla se refleja aquí al instante
+  useRealtime(TOPICS.INTERVENTIONS, () => {
+    ready.reload({ silent: true })
+    unclaimed.reload({ silent: true })
+    delivered.reload({ silent: true })
+  })
   const unclaimedById = new Map((unclaimed.data ?? []).map((order) => [order.id, order]))
   const [payment, setPayment] = useState(null)
   const [toDeliver, setToDeliver] = useState(null)

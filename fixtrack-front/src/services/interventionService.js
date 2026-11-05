@@ -7,15 +7,19 @@ export async function createIntervention(request) {
 }
 
 // Filtros combinables; los vacíos no se envían
-export async function searchInterventions({ page = 0, size = 20, ...filters } = {}) {
+// sort es una lista como ['estimatedDeliveryDate,asc', ...]; Spring la espera repetida (sort=a&sort=b), sin corchetes
+const REPEATED_PARAMS = { indexes: null }
+
+export async function searchInterventions({ page = 0, size = 20, sort, ...filters } = {}) {
   const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== '' && value != null && value !== false))
-  const response = await API_CONFIG.get('/interventions', { params: { ...params, page, size } })
+  const response = await API_CONFIG.get('/interventions', { params: { ...params, page, size, sort }, paramsSerializer: REPEATED_PARAMS })
   return response.data
 }
 
-export async function listMyInterventions({ status, overdue, inProgress, page = 0, size = 20 } = {}) {
+export async function listMyInterventions({ status, overdue, inProgress, sort, page = 0, size = 20 } = {}) {
   const response = await API_CONFIG.get('/interventions/mine', {
-    params: { status: status || undefined, overdue: overdue || undefined, inProgress: inProgress || undefined, page, size },
+    params: { status: status || undefined, overdue: overdue || undefined, inProgress: inProgress || undefined, page, size, sort },
+    paramsSerializer: REPEATED_PARAMS,
   })
   return response.data
 }
@@ -64,8 +68,8 @@ export async function assignTechnician(id, technicianId) {
   return response.data
 }
 
-export async function rescheduleDelivery(id, { newDate, reason }) {
-  const response = await API_CONFIG.patch(`/interventions/${id}/estimated-delivery`, { newDate, reason })
+export async function rescheduleDelivery(id, { newDate, newTime, reason }) {
+  const response = await API_CONFIG.patch(`/interventions/${id}/estimated-delivery`, { newDate, newTime, reason })
   return response.data
 }
 

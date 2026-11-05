@@ -1,0 +1,5 @@
+package com.fixtrack.infra.realtime;
+
+public enum RealtimeEventType {
+	CREATED, UPDATED, DEACTIVATED, STATUS_CHANGED, RESCHEDULED, STOCK_CHANGED, LOW_STOCK, OUT_OF_STOCK, STOCK_RESTORED
+}

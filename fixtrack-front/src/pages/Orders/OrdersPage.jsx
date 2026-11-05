@@ -5,6 +5,7 @@ import FormField from '../../components/FormField/FormField'
 import PageHeader from '../../components/PageHeader/PageHeader'
 import { useAuth } from '../../hooks/useAuth'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { TOPICS, useRealtime } from '../../hooks/useRealtime'
 import { useRemoteData } from '../../hooks/useRemoteData'
 import * as catalogService from '../../services/catalogService'
 import * as interventionService from '../../services/interventionService'
@@ -41,6 +42,9 @@ function filtersFromParams(params) {
   return filters
 }
 
+// Más urgentes primero: la entrega más próxima (o la más vencida) arriba; se ordena en el servidor porque el listado es paginado
+const URGENT_SORT = ['estimatedDeliveryDate,asc', 'estimatedDeliveryTime,asc', 'id,asc']
+
 // Órdenes: el técnico ve las suyas abiertas; los demás consultan todas con filtros combinados y reciben equipos
 export default function OrdersPage() {
   const { user } = useAuth()
@@ -63,12 +67,42 @@ export default function OrdersPage() {
     setPage(0)
   }
 
+  const [urgentFirst, setUrgentFirst] = useState(false)
+  const sort = urgentFirst ? URGENT_SORT : undefined
   const orders = useRemoteData(
     () => (technicianView
-      ? interventionService.listMyInterventions({ status: filters.status, overdue: filters.overdue, inProgress: filters.inProgress, page })
-      : interventionService.searchInterventions({ ...query, page })),
-    [technicianView, page, ...Object.values(query)],
+      ? interventionService.listMyInterventions({ status: filters.status, overdue: filters.overdue, inProgress: filters.inProgress, sort, page })
+      // Por urgencia solo tienen sentido las abiertas: las entregadas tienen fechas viejas y quedarían arriba
+      : interventionService.searchInterventions({ ...query, openOnly: query.openOnly || urgentFirst, sort, page })),
+    [technicianView, page, urgentFirst, ...Object.values(query)],
   )
+  // Tiempo real: la fila de la orden se actualiza en sitio con los datos del evento (estado, técnico y entrega);
+  // solo se recarga si la orden puede entrar, salir o cambiar de lugar en el listado
+  useRealtime(TOPICS.INTERVENTIONS, ({ type, id, payload }) => {
+    const inList = orders.data?.content?.some((order) => order.id === id)
+    if (inList) {
+      orders.mutate((current) => ({
+        ...current,
+        content: current.content.map((order) => (order.id === id
+          ? {
+            ...order,
+            status: payload.status,
+            technicianName: payload.technicianName,
+            estimatedDeliveryDate: payload.estimatedDeliveryDate,
+            estimatedDeliveryTime: payload.estimatedDeliveryTime,
+            estimatedDeliveryAt: payload.estimatedDeliveryAt,
+          }
+          : order)),
+      }))
+      const filtered = filters.status || filters.overdue || filters.inProgress || filters.technicianId
+      const reordered = urgentFirst && type === 'RESCHEDULED'
+      if ((type === 'STATUS_CHANGED' && filtered) || reordered) orders.reload({ silent: true })
+      return
+    }
+    const mine = !technicianView || payload.technicianId === user.id
+    if (mine) orders.reload({ silent: true })
+  })
+
   const technicians = useRemoteData(() => personService.searchPeople({ role: ROLES.TECHNICIAN, size: 100 }), [])
   const brands = useRemoteData(catalogService.listBrands, [])
   const models = useRemoteData(() => catalogService.listDeviceModels(), [])
@@ -111,6 +145,14 @@ export default function OrdersPage() {
             </FormField>
           </>
         )}
+        <FormField id="orders-sort" label="Ordenar por">
+          {(props) => (
+            <select {...props} className="form-input" value={urgentFirst ? 'urgent' : 'recent'} onChange={(event) => { setUrgentFirst(event.target.value === 'urgent'); setPage(0) }}>
+              <option value="recent">{technicianView ? 'Ingreso más antiguo' : 'Ingreso más reciente'}</option>
+              <option value="urgent">Tiempo restante: más urgentes primero</option>
+            </select>
+          )}
+        </FormField>
         <FormField id="orders-status" label="Estado">
           {(props) => (
             <select {...props} className="form-input" value={filters.status} onChange={(event) => changeFilter('status', event.target.value)}>

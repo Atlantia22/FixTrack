@@ -20,6 +20,7 @@ import com.fixtrack.intervention.dto.PersonRef;
 import com.fixtrack.intervention.dto.SparePartUsageRequest;
 import com.fixtrack.intervention.dto.SparePartUsageResponse;
 import com.fixtrack.intervention.dto.UpdateSparePartUsageRequest;
+import com.fixtrack.intervention.events.InterventionEventPublisher;
 import com.fixtrack.intervention.entity.Intervention;
 import com.fixtrack.intervention.entity.InterventionSparePart;
 import com.fixtrack.intervention.entity.InterventionStatus;
@@ -50,6 +51,7 @@ public class InterventionSparePartServiceImpl implements InterventionSparePartSe
 	private final SparePartService sparePartService;
 	private final StockService stockService;
 	private final PersonService personService;
+	private final InterventionEventPublisher interventionEvents;
 
 	@Override
 	@Transactional(readOnly = true)
@@ -73,6 +75,7 @@ public class InterventionSparePartServiceImpl implements InterventionSparePartSe
 			AuthenticatedUser actor) {
 		Intervention intervention = findEditableIntervention(interventionId, actor);
 		consume(intervention, request.sparePartId(), request.quantity(), personService.getEntity(actor.id()));
+		interventionEvents.updated(intervention);
 		return toResponse(intervention, actor);
 	}
 
@@ -95,6 +98,7 @@ public class InterventionSparePartServiceImpl implements InterventionSparePartSe
 
 		// 2. Consumo en la orden; lo que sobre queda en el inventario
 		consume(intervention, part.getId(), request.quantityUsed(), technician);
+		interventionEvents.updated(intervention);
 		return toResponse(intervention, actor);
 	}
 
@@ -135,6 +139,7 @@ public class InterventionSparePartServiceImpl implements InterventionSparePartSe
 		usage.setQuantity(request.quantity());
 		usageRepository.flush();
 		pricingService.reviewAdditionalFindings(intervention);
+		interventionEvents.updated(intervention);
 		return toResponse(intervention, actor);
 	}
 
@@ -150,6 +155,7 @@ public class InterventionSparePartServiceImpl implements InterventionSparePartSe
 		usageRepository.delete(usage);
 		usageRepository.flush();
 		pricingService.reviewAdditionalFindings(intervention);
+		interventionEvents.updated(intervention);
 		return toResponse(intervention, actor);
 	}
 
@@ -196,6 +202,7 @@ public class InterventionSparePartServiceImpl implements InterventionSparePartSe
 				.build());
 		usageRepository.flush();
 		pricingService.reviewAdditionalFindings(intervention);
+		interventionEvents.updated(intervention);
 		return true;
 	}
 

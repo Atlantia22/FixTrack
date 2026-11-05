@@ -163,7 +163,7 @@ public class ReceiptServiceImpl implements ReceiptService {
 					"Daños reportados", initialServices.isEmpty() ? "—" : String.join(", ", initialServices),
 					"Problema reportado", intervention.getProblemDescription(),
 					"Presupuesto inicial", money(intervention.getEstimatedPrice()),
-					"Fecha estimada de entrega", formatDate(intervention.getEstimatedDeliveryDate()),
+					"Fecha estimada de entrega", formatDelivery(intervention),
 					"Abono recibido", Money.format(deposits)));
 
 			// 4. Condiciones del servicio y firma
@@ -204,7 +204,7 @@ public class ReceiptServiceImpl implements ReceiptService {
 					"Cliente", customer.getFullName(),
 					"Documento", ReceiptLabels.DOCUMENT_TYPES.get(customer.getDocumentType()) + " " + mask(customer.getDocumentNumber(), 3, masked),
 					"Equipo", deviceName(intervention.getDevice()),
-					"Fecha estimada de entrega", formatDate(intervention.getEstimatedDeliveryDate()),
+					"Fecha estimada de entrega", formatDelivery(intervention),
 					"Fecha de entrega", formatDateTime(intervention.getDeliveredAt())));
 
 			// 1. Resultado y servicios realizados
@@ -381,6 +381,13 @@ public class ReceiptServiceImpl implements ReceiptService {
 
 	private String formatDate(LocalDate date) {
 		return date == null ? "—" : DATE.format(date);
+	}
+
+	// Fecha y hora acordadas; las órdenes antiguas solo tienen fecha
+	private String formatDelivery(Intervention intervention) {
+		LocalDate date = intervention.getEstimatedDeliveryDate();
+		return intervention.getEstimatedDeliveryTime() == null ? formatDate(date)
+				: formatDateTime(date.atTime(intervention.getEstimatedDeliveryTime()));
 	}
 
 	private String formatDateTime(LocalDateTime dateTime) {

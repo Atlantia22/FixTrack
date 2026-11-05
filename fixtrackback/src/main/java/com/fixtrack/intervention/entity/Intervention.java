@@ -3,6 +3,7 @@ package com.fixtrack.intervention.entity;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -109,6 +110,10 @@ public class Intervention {
 
 	@Column(name = "estimated_delivery_date", nullable = false)
 	private LocalDate estimatedDeliveryDate;
+
+	// Hora acordada con el cliente; null en las órdenes anteriores a este campo, que solo tenían fecha
+	@Column(name = "estimated_delivery_time")
+	private LocalTime estimatedDeliveryTime;
 
 	@Builder.Default
 	@Column(name = "labor_cost", nullable = false, precision = 12, scale = 2)

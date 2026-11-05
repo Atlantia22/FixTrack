@@ -54,6 +54,8 @@ import com.fixtrack.inventory.service.StockService;
 import com.fixtrack.person.entity.Person;
 import com.fixtrack.person.entity.Role;
 import com.fixtrack.person.service.PersonService;
+import com.fixtrack.infra.realtime.RealtimeEventType;
+import com.fixtrack.inventory.events.InventoryEventPublisher;
 
 import lombok.RequiredArgsConstructor;
 
@@ -77,6 +79,7 @@ public class PartRequestServiceImpl implements PartRequestService {
 	private final InterventionSparePartService interventionSparePartService;
 	private final StockService stockService;
 	private final SparePartService sparePartService;
+	private final InventoryEventPublisher inventoryEvents;
 	private final PersonService personService;
 	private final PartRequestMapper partRequestMapper;
 	private final Clock clock;
@@ -131,6 +134,7 @@ public class PartRequestServiceImpl implements PartRequestService {
 				.build());
 		interventionService.markWaitingParts(intervention, technician,
 				"Solicitud de repuesto #" + saved.getId() + ": " + description + " × " + saved.getQuantity());
+		inventoryEvents.partRequestChanged(RealtimeEventType.CREATED, saved);
 		return toResponse(saved);
 	}
 
@@ -180,6 +184,7 @@ public class PartRequestServiceImpl implements PartRequestService {
 		}
 		partRequest.setStatus(PartRequestStatus.APPROVED);
 		partRequest.setHandledBy(personService.getEntity(actor.id()));
+		inventoryEvents.partRequestChanged(RealtimeEventType.STATUS_CHANGED, partRequest);
 		return toResponse(partRequest);
 	}
 
@@ -191,6 +196,7 @@ public class PartRequestServiceImpl implements PartRequestService {
 		partRequest.setStatus(PartRequestStatus.REJECTED);
 		partRequest.setRejectionReason(request.reason().trim());
 		partRequest.setHandledBy(personService.getEntity(actor.id()));
+		inventoryEvents.partRequestChanged(RealtimeEventType.STATUS_CHANGED, partRequest);
 		return toResponse(partRequest);
 	}
 
@@ -219,6 +225,7 @@ public class PartRequestServiceImpl implements PartRequestService {
 		partRequest.setSupplier(supplier);
 		partRequest.setStatus(PartRequestStatus.ORDERED);
 		partRequest.setHandledBy(personService.getEntity(actor.id()));
+		inventoryEvents.partRequestChanged(RealtimeEventType.STATUS_CHANGED, partRequest);
 		return toResponse(partRequest);
 	}
 
@@ -260,6 +267,7 @@ public class PartRequestServiceImpl implements PartRequestService {
 		partRequest.setReceivedAt(LocalDateTime.now(clock));
 		partRequest.setStatus(PartRequestStatus.RECEIVED);
 		partRequest.setHandledBy(coordinator);
+		inventoryEvents.partRequestChanged(RealtimeEventType.STATUS_CHANGED, partRequest);
 		int stockAfter = consumed ? entry.getBalanceAfter() - partRequest.getQuantity() : entry.getBalanceAfter();
 		return new PartReceiptResponse(toResponse(partRequest), consumed, stockAfter);
 	}
@@ -268,7 +276,10 @@ public class PartRequestServiceImpl implements PartRequestService {
 	@Transactional
 	public int cancelNotOrdered(Long interventionId) {
 		List<PartRequest> open = partRequestRepository.findByInterventionIdAndStatusIn(interventionId, NOT_ORDERED);
-		open.forEach(request -> request.setStatus(PartRequestStatus.CANCELLED));
+		open.forEach(request -> {
+			request.setStatus(PartRequestStatus.CANCELLED);
+			inventoryEvents.partRequestChanged(RealtimeEventType.STATUS_CHANGED, request);
+		});
 		return open.size();
 	}
 

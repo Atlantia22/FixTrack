@@ -1,6 +1,7 @@
 package com.fixtrack.intervention.dto;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 import com.fixtrack.intervention.entity.ServiceType;
 
@@ -18,6 +19,7 @@ public record WarrantyRequest(
 		@NotBlank @Size(max = 1000) String physicalCondition,
 		@Size(max = 100) String unlockCode,
 		@NotNull LocalDate estimatedDeliveryDate,
+		@NotNull LocalTime estimatedDeliveryTime,
 		Long technicianId,
 		@Pattern(regexp = "^(\\s*\\d{7,10}\\s*)?$", message = "debe tener entre 7 y 10 dígitos, solo números") String phone,
 		Boolean noPhone,

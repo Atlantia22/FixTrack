@@ -12,4 +12,7 @@ public interface PortalService {
 	ReceiptFile intakeReceipt(PortalLookupRequest request, String clientIp);
 
 	ReceiptFile deliveryReceipt(PortalLookupRequest request, String clientIp);
+
+	// Autoriza seguir la orden en tiempo real con las mismas reglas de la consulta; devuelve el código de la original
+	String authorizeFollow(PortalLookupRequest request, String clientIp);
 }

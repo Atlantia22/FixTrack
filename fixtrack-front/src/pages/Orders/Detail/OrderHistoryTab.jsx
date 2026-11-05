@@ -1,7 +1,7 @@
 import StatusBadge from '../../../components/StatusBadge/StatusBadge'
 import { useRemoteData } from '../../../hooks/useRemoteData'
 import * as interventionService from '../../../services/interventionService'
-import { formatDate, formatDateTime } from '../../../utils/format'
+import { formatDateTime, formatDelivery } from '../../../utils/format'
 import './OrderHistoryTab.css'
 
 // Historial de la orden: cambios de estado y reprogramaciones de la fecha de entrega
@@ -37,9 +37,9 @@ export default function OrderHistoryTab({ order }) {
           {(changes.data ?? []).map((change) => (
             <li key={change.id} className="order-history__item">
               <p className="order-history__line">
-                <span>{formatDate(change.previousDate)}</span>
+                <span>{formatDelivery(change.previousDate, change.previousTime)}</span>
                 <span aria-hidden="true">→</span>
-                <strong>{formatDate(change.newDate)}</strong>
+                <strong>{formatDelivery(change.newDate, change.newTime)}</strong>
               </p>
               <p className="order-history__meta">{formatDateTime(change.changedAt)} · {change.changedBy.fullName}</p>
               <p className="order-history__note">{change.reason}</p>

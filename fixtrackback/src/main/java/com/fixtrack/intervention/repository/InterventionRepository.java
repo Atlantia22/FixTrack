@@ -2,6 +2,7 @@ package com.fixtrack.intervention.repository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -114,7 +115,9 @@ public interface InterventionRepository extends JpaRepository<Intervention, Long
 	@Query("""
 			SELECT new com.fixtrack.intervention.dto.OrderCounters(
 			  COALESCE(SUM(CASE WHEN i.receivedAt >= :startOfToday AND i.receivedAt < :startOfTomorrow THEN 1 ELSE 0 END), 0),
-			  COALESCE(SUM(CASE WHEN i.status IN :overdueStatuses AND i.estimatedDeliveryDate < :today THEN 1 ELSE 0 END), 0),
+			  COALESCE(SUM(CASE WHEN i.status IN :overdueStatuses AND (i.estimatedDeliveryDate < :today
+			    OR (i.estimatedDeliveryDate = :today AND i.estimatedDeliveryTime IS NOT NULL
+			        AND i.estimatedDeliveryTime <= :nowTime)) THEN 1 ELSE 0 END), 0),
 			  COALESCE(SUM(CASE WHEN i.status IN :inProgressStatuses THEN 1 ELSE 0 END), 0),
 			  COALESCE(SUM(CASE WHEN i.status = :waitingParts THEN 1 ELSE 0 END), 0),
 			  COALESCE(SUM(CASE WHEN i.status = :ready THEN 1 ELSE 0 END), 0),
@@ -125,7 +128,8 @@ public interface InterventionRepository extends JpaRepository<Intervention, Long
 			""")
 	OrderCounters countForDashboard(@Param("technicianId") Long technicianId,
 			@Param("startOfToday") LocalDateTime startOfToday, @Param("startOfTomorrow") LocalDateTime startOfTomorrow,
-			@Param("today") LocalDate today, @Param("unclaimedBefore") LocalDateTime unclaimedBefore,
+			@Param("today") LocalDate today, @Param("nowTime") LocalTime nowTime,
+			@Param("unclaimedBefore") LocalDateTime unclaimedBefore,
 			@Param("overdueStatuses") Collection<InterventionStatus> overdueStatuses,
 			@Param("inProgressStatuses") Collection<InterventionStatus> inProgressStatuses,
 			@Param("closedStatuses") Collection<InterventionStatus> closedStatuses,

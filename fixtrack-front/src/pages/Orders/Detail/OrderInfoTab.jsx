@@ -1,12 +1,16 @@
 import { useState } from 'react'
 import PatternLock from '../../../components/PatternLock/PatternLock'
+import TimeRemainingTag from '../../../components/TimeRemainingTag/TimeRemainingTag'
 import { MdEditCalendar, MdVisibility, MdVisibilityOff } from 'react-icons/md'
 import { useAuth } from '../../../hooks/useAuth'
+import { useNow } from '../../../hooks/useNow'
 import { useToast } from '../../../hooks/useToast'
 import * as interventionService from '../../../services/interventionService'
 import { getErrorMessage } from '../../../utils/errors'
-import { displayOrNT, formatCurrency, formatDate } from '../../../utils/format'
+import { displayOrNT, formatCurrency, formatDate, formatDelivery } from '../../../utils/format'
 import { AVAILABILITY_LABELS, DEVICE_TYPE_LABELS } from '../../../utils/labels'
+import { orderPrice } from '../../../utils/orderPrice'
+import { isOverdue } from '../../../utils/timeRemaining'
 import { isAssignedTechnician, isFrontDesk } from '../../../utils/permissions'
 import { isSavedPattern, parsePattern } from '../../../utils/unlockPattern'
 import OrderFrontDeskActions from './OrderFrontDeskActions'
@@ -24,6 +28,10 @@ export default function OrderInfoTab({ order, technicians, onUpdated }) {
 
   const open = order.nextStatuses.length > 0
   const unlockIsPattern = isSavedPattern(order.unlockCode)
+  const now = useNow()
+  // Un solo valor: el presupuesto mientras el técnico no dé el precio, luego el precio final
+  const price = orderPrice({ status: order.status, estimatedPrice: order.estimatedPrice, total: order.charges.total })
+  const balance = price.priced ? order.charges.balance : Math.max(price.value - order.charges.paid, 0)
   const canReschedule = open && (isFrontDesk(user) || isAssignedTechnician(order, user))
   const canAssign = open && isFrontDesk(user)
 
@@ -46,8 +54,9 @@ export default function OrderInfoTab({ order, technicians, onUpdated }) {
         <h3 id="order-info-delivery" className="order-info__title">Entrega</h3>
         <div className="order-info__delivery">
           <p>
-            Fecha estimada: <strong>{formatDate(order.estimatedDeliveryDate)}</strong>
-            {order.overdue && <span className="order-info__overdue">Atrasada</span>}
+            Fecha y hora estimada: <strong>{formatDelivery(order.estimatedDeliveryDate, order.estimatedDeliveryTime)}</strong>
+            {isOverdue(order, now) && <span className="order-info__overdue">Atrasada</span>}
+            <TimeRemainingTag order={order} now={now} />
           </p>
           {canReschedule && !rescheduling && (
             <button type="button" className="btn btn--secondary" onClick={() => setRescheduling(true)}>
@@ -152,11 +161,19 @@ export default function OrderInfoTab({ order, technicians, onUpdated }) {
       <section className="order-info__section" aria-labelledby="order-info-money">
         <h3 id="order-info-money" className="order-info__title">Valores</h3>
         <dl className="order-info__data">
-          <div><dt>Presupuesto inicial</dt><dd>{formatCurrency(order.estimatedPrice)}</dd></div>
-          <div><dt>{order.status === 'DELIVERED' ? 'Total cobrado' : 'Total actual'}</dt><dd>{formatCurrency(order.charges.total)}</dd></div>
+          <div>
+            <dt>{order.status === 'DELIVERED' ? 'Valor cobrado' : 'Valor de la orden'}</dt>
+            <dd>
+              <span className="order-info__price">
+                {formatCurrency(price.value)}
+                <span className={`tag ${price.priced ? 'tag--success' : ''}`}>{price.label}</span>
+              </span>
+              {!price.priced && <span className="order-info__price-hint">Se actualiza cuando el técnico dé el precio final.</span>}
+            </dd>
+          </div>
           <div><dt>Abonado</dt><dd>{formatCurrency(order.charges.paid)}</dd></div>
-          <div><dt>Saldo</dt><dd className={order.charges.balance > 0 ? 'order-info__due' : undefined}>{formatCurrency(order.charges.balance)}</dd></div>
-          {order.charges.refundDue > 0 && <div><dt>Saldo a favor del cliente</dt><dd className="order-info__due">{formatCurrency(order.charges.refundDue)}</dd></div>}
+          <div><dt>{price.priced ? 'Saldo' : 'Saldo estimado'}</dt><dd className={balance > 0 ? 'order-info__due' : undefined}>{formatCurrency(balance)}</dd></div>
+          {price.priced && order.charges.refundDue > 0 && <div><dt>Saldo a favor del cliente</dt><dd className="order-info__due">{formatCurrency(order.charges.refundDue)}</dd></div>}
           {order.warrantyUntil && <div><dt>Garantía</dt><dd>{order.warrantyDays} días, hasta {formatDate(order.warrantyUntil)}</dd></div>}
         </dl>
       </section>

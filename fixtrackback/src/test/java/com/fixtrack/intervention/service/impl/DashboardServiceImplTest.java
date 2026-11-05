@@ -79,7 +79,7 @@ class DashboardServiceImplTest {
 	@Test
 	void shouldGiveAdvisorTechniciansWithWorkloadButNoStockAlerts() {
 		given(interventionRepository.countForDashboard(isNull(), any(), any(), any(), any(), any(), any(), any(), any(),
-				any())).willReturn(COUNTERS);
+				any(), any())).willReturn(COUNTERS);
 		given(interventionRepository.countOpenByTechnician(any())).willReturn(List.of(new TechnicianWorkload(5L, 4L)));
 		given(personService.findActiveTechnicians()).willReturn(List.of(
 				new TechnicianSummary(5L, "Tomás", Availability.BUSY), new TechnicianSummary(6L, "Laura", null)));
@@ -98,7 +98,7 @@ class DashboardServiceImplTest {
 	@Test
 	void shouldAddStockAlertsForCoordinator() {
 		given(interventionRepository.countForDashboard(isNull(), any(), any(), any(), any(), any(), any(), any(), any(),
-				any())).willReturn(COUNTERS);
+				any(), any())).willReturn(COUNTERS);
 		given(sparePartService.findLowStock()).willReturn(List.of());
 		given(partRequestService.countAwaitingCoordinator()).willReturn(2L);
 		given(partRequestService.findAwaitingCoordinator(10)).willReturn(List.of());
@@ -113,7 +113,7 @@ class DashboardServiceImplTest {
 	@Test
 	void shouldGiveAdminOrderCountersAndStockAlerts() {
 		given(interventionRepository.countForDashboard(isNull(), any(), any(), any(), any(), any(), any(), any(), any(),
-				any())).willReturn(COUNTERS);
+				any(), any())).willReturn(COUNTERS);
 		given(sparePartService.findLowStock()).willReturn(List.of());
 
 		AdminDashboard dashboard = (AdminDashboard) dashboardService.forUser(user(Role.ADMIN));
@@ -126,7 +126,7 @@ class DashboardServiceImplTest {
 	@Test
 	void shouldCountOnlyTechnicianOwnOrders() {
 		given(interventionRepository.countForDashboard(eq(9L), any(), any(), any(), any(), any(), any(), any(), any(),
-				any())).willReturn(new OrderCounters(0L, 1L, 2L, 1L, 1L, 0L, 3L));
+				any(), any())).willReturn(new OrderCounters(0L, 1L, 2L, 1L, 1L, 0L, 3L));
 
 		TechnicianDashboard dashboard = (TechnicianDashboard) dashboardService.forUser(user(Role.TECHNICIAN));
 

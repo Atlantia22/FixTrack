@@ -42,6 +42,8 @@ import com.fixtrack.person.repository.PersonRepository;
 import com.fixtrack.person.repository.PersonSpecialtyRepository;
 import com.fixtrack.person.repository.SpecialtyRepository;
 import com.fixtrack.person.service.PersonService;
+import com.fixtrack.infra.realtime.RealtimeEventType;
+import com.fixtrack.person.events.PersonEventPublisher;
 
 import lombok.RequiredArgsConstructor;
 
@@ -60,6 +62,7 @@ public class PersonServiceImpl implements PersonService {
 	private final PersonMapper personMapper;
 	private final SpecialtyMapper specialtyMapper;
 	private final Clock clock;
+	private final PersonEventPublisher personEvents;
 
 	@Override
 	@Transactional(readOnly = true)
@@ -97,6 +100,7 @@ public class PersonServiceImpl implements PersonService {
 		applyRequest(person, request);
 		personRepository.save(person);
 		syncSpecialties(person, request.specialtyIds());
+		personEvents.personChanged(RealtimeEventType.CREATED, person);
 		return toResponse(person);
 	}
 
@@ -112,6 +116,7 @@ public class PersonServiceImpl implements PersonService {
 		}
 		applyRequest(person, request);
 		syncSpecialties(person, request.specialtyIds());
+		personEvents.personChanged(RealtimeEventType.UPDATED, person);
 		return toResponse(person);
 	}
 
@@ -124,6 +129,7 @@ public class PersonServiceImpl implements PersonService {
 			throw new ConflictException("No se puede dar de baja al único administrador activo");
 		}
 		person.setActive(false);
+		personEvents.personChanged(RealtimeEventType.DEACTIVATED, person);
 	}
 
 	// El técnico cambia su propia disponibilidad; el administrador, la de cualquier técnico
@@ -141,6 +147,7 @@ public class PersonServiceImpl implements PersonService {
 			throw new ConflictException("El técnico está dado de baja");
 		}
 		person.setAvailability(availability);
+		personEvents.personChanged(RealtimeEventType.UPDATED, person);
 		return toResponse(person);
 	}
 
@@ -165,6 +172,7 @@ public class PersonServiceImpl implements PersonService {
 		}
 		person.setPhone(phone);
 		person.setEmail(email);
+		personEvents.personChanged(RealtimeEventType.UPDATED, person);
 		return toResponse(person);
 	}
 
@@ -182,6 +190,7 @@ public class PersonServiceImpl implements PersonService {
 						+ " está dada de baja");
 			}
 			updateContact(person, request);
+			personEvents.personChanged(RealtimeEventType.UPDATED, person);
 			return person;
 		}
 
@@ -197,7 +206,7 @@ public class PersonServiceImpl implements PersonService {
 				throw new ConflictException("Ya existe una persona con el correo " + email);
 			}
 		}
-		return personRepository.save(Person.builder()
+		Person customer = personRepository.save(Person.builder()
 				.documentType(request.documentType())
 				.documentNumber(documentNumber)
 				.fullName(request.fullName().trim())
@@ -205,6 +214,8 @@ public class PersonServiceImpl implements PersonService {
 				.email(email)
 				.role(Role.CUSTOMER)
 				.build());
+		personEvents.personChanged(RealtimeEventType.CREATED, customer);
+		return customer;
 	}
 
 	@Override

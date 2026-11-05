@@ -4,6 +4,7 @@ import DataTable from '../../components/DataTable/DataTable'
 import FormField from '../../components/FormField/FormField'
 import PageHeader from '../../components/PageHeader/PageHeader'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { TOPICS, useRealtime } from '../../hooks/useRealtime'
 import { useRemoteData } from '../../hooks/useRemoteData'
 import * as personService from '../../services/personService'
 import { displayOrNT } from '../../utils/format'
@@ -23,6 +24,11 @@ export default function CustomersPage() {
     () => personService.searchPeople({ search: debouncedSearch, role: ROLES.CUSTOMER, active, page }),
     [debouncedSearch, active, page],
   )
+
+  // Clientes nuevos (desde el ingreso) o con contacto corregido en otra pantalla
+  useRealtime(TOPICS.PERSONS, ({ payload }) => {
+    if (payload.role === ROLES.CUSTOMER) customers.reload({ silent: true })
+  })
 
   const columns = [
     { key: 'document', header: 'Documento', render: (customer) => `${customer.documentType} ${customer.documentNumber}` },

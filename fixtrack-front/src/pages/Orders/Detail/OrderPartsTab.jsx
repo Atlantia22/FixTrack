@@ -4,6 +4,7 @@ import ConfirmDialog from '../../../components/ConfirmDialog/ConfirmDialog'
 import DataTable from '../../../components/DataTable/DataTable'
 import FormField from '../../../components/FormField/FormField'
 import { useAuth } from '../../../hooks/useAuth'
+import { TOPICS, useRealtime } from '../../../hooks/useRealtime'
 import { useRemoteData } from '../../../hooks/useRemoteData'
 import { useToast } from '../../../hooks/useToast'
 import * as catalogService from '../../../services/catalogService'
@@ -12,6 +13,7 @@ import { getErrorMessage } from '../../../utils/errors'
 import { formatCurrency } from '../../../utils/format'
 import { QUALITY_LABELS, ROLES } from '../../../utils/labels'
 import { canEditUsedParts, canWorkOnRepair } from '../../../utils/permissions'
+import SearchSelect from '../../../components/SearchSelect/SearchSelect'
 import NewSparePartForm from './NewSparePartForm'
 import OrderLaborForm from './OrderLaborForm'
 import OrderPartRequests from './OrderPartRequests'
@@ -45,12 +47,24 @@ export default function OrderPartsTab({ order, onUpdated }) {
   const addingNew = sparePartId === OTHER_PART
 
   const parts = useRemoteData(() => interventionService.listUsedParts(order.id), [order.id])
+  useRealtime(TOPICS.INTERVENTIONS, ({ id }) => {
+    if (id === order.id) parts.reload({ silent: true })
+  })
   const partTypes = useRemoteData(catalogService.listPartTypes, [])
   const models = useRemoteData(() => catalogService.listDeviceModels(), [])
   const candidates = useRemoteData(
     () => (canEdit ? interventionService.listPartCandidates(order.id, { partTypeId, deviceModelId }) : Promise.resolve([])),
     [order.id, partTypeId, deviceModelId, canEdit],
   )
+  // Repuestos que sirven al equipo, con «Otro» al final para el que no está en el inventario
+  const partOptions = [
+    ...(candidates.data ?? []).map((part) => ({ value: part.id, label: candidateLabel(part) })),
+    ...(candidates.loading ? [] : [{ value: OTHER_PART, label: 'Otro: no está en el inventario…' }]),
+  ]
+  // El stock de los candidatos cambia cuando otra orden usa o devuelve repuestos
+  useRealtime(TOPICS.SPARE_PARTS, () => {
+    if (canEdit) candidates.reload({ silent: true })
+  })
 
   async function handleAdd(event) {
     event.preventDefault()
@@ -139,30 +153,47 @@ export default function OrderPartsTab({ order, onUpdated }) {
           <div className="order-parts__filters">
             <FormField id="parts-type" label="Tipo">
               {(props) => (
-                <select {...props} className="form-input" value={partTypeId} onChange={(event) => { setPartTypeId(event.target.value); setSparePartId('') }}>
-                  <option value="">Todos</option>
-                  {(partTypes.data ?? []).map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
-                </select>
+                <SearchSelect
+                  {...props}
+                  options={(partTypes.data ?? []).map((type) => ({ value: type.id, label: type.name }))}
+                  value={partTypeId}
+                  placeholder="Todos"
+                  emptyMessage="No hay tipos con ese nombre"
+                  onChange={(value) => { setPartTypeId(value); setSparePartId('') }}
+                />
               )}
             </FormField>
             <FormField id="parts-model" label="Modelo">
               {(props) => (
-                <select {...props} className="form-input" value={deviceModelId} onChange={(event) => { setDeviceModelId(event.target.value); setSparePartId('') }}>
-                  <option value="">Todos (compatibles primero)</option>
-                  {(models.data ?? []).map((model) => <option key={model.id} value={model.id}>{model.brandName} {model.name}</option>)}
-                </select>
+                <SearchSelect
+                  {...props}
+                  options={(models.data ?? []).map((model) => ({ value: model.id, label: `${model.brandName} ${model.name}` }))}
+                  value={deviceModelId}
+                  placeholder="Todos (compatibles primero)"
+                  emptyMessage="No hay modelos con ese nombre"
+                  onChange={(value) => { setDeviceModelId(value); setSparePartId('') }}
+                />
               )}
             </FormField>
           </div>
           <FormField id="parts-part" label="Repuesto" hint={`Equipo de la orden: ${order.device.brandName} ${order.device.modelName}.`}>
             {(props) => (
-              <select {...props} className="form-input" value={sparePartId} disabled={candidates.loading} onChange={(event) => setSparePartId(event.target.value)}>
-                <option value="">{candidates.loading ? 'Cargando…' : (candidates.data?.length ? 'Elija el repuesto' : 'No hay repuestos con esos filtros')}</option>
-                {(candidates.data ?? []).map((part) => <option key={part.id} value={part.id}>{candidateLabel(part)}</option>)}
-                {!candidates.loading && <option value={OTHER_PART}>Otro: no está en el inventario…</option>}
-              </select>
+              <SearchSelect
+                {...props}
+                options={partOptions}
+                value={sparePartId}
+                disabled={candidates.loading}
+                placeholder={candidates.loading ? 'Cargando…' : 'Escriba el nombre, SKU o calidad'}
+                emptyMessage="No hay repuestos con ese nombre; use «Agregar otro repuesto»"
+                onChange={setSparePartId}
+              />
             )}
           </FormField>
+          {!addingNew && !candidates.loading && (
+            <button type="button" className="btn btn--ghost order-parts__other" onClick={() => setSparePartId(OTHER_PART)}>
+              <MdAdd aria-hidden="true" /> ¿No está? Agregar otro repuesto
+            </button>
+          )}
           {!addingNew && (
             <div className="order-parts__add">
               <FormField id="parts-quantity" label="Cantidad">
@@ -207,16 +238,19 @@ export default function OrderPartsTab({ order, onUpdated }) {
           <dl className="order-parts__totals">
             {showBreakdown && (
               <>
-                <div><dt>Repuestos</dt><dd>{formatCurrency(parts.data.partsTotal)}</dd></div>
-                <div><dt>Mano de obra</dt><dd>{formatCurrency(parts.data.laborCost)}</dd></div>
+                <div><dt>Repuestos (venta con instalación)</dt><dd>{formatCurrency(parts.data.partsTotal)}</dd></div>
+                <div><dt>Mano de obra adicional</dt><dd>{formatCurrency(parts.data.laborCost)}</dd></div>
               </>
             )}
             <div className="order-parts__total"><dt>Total de la orden</dt><dd>{formatCurrency(parts.data.total)}</dd></div>
             {parts.data.partsCost != null && (
               <>
                 <div><dt>Costo de repuestos</dt><dd>{formatCurrency(parts.data.partsCost)}</dd></div>
+                {/* El precio de venta del repuesto ya trae la instalación: su ganancia es venta − costo */}
+                <div><dt>Ganancia en repuestos e instalación</dt><dd>{formatCurrency(parts.data.partsTotal - parts.data.partsCost)}</dd></div>
+                <div><dt>Ganancia por mano de obra adicional</dt><dd>{formatCurrency(parts.data.laborCost)}</dd></div>
                 <div className={parts.data.profit < 0 ? 'order-parts__loss' : 'order-parts__profit'}>
-                  <dt>Ganancia</dt><dd>{formatCurrency(parts.data.profit)}</dd>
+                  <dt>Ganancia total</dt><dd>{formatCurrency(parts.data.profit)}</dd>
                 </div>
               </>
             )}
@@ -225,6 +259,7 @@ export default function OrderPartsTab({ order, onUpdated }) {
         {canWorkOnRepair(order, user) && (
           <OrderLaborForm
             order={order}
+            partsTotal={parts.data?.partsTotal ?? 0}
             onSaved={() => {
               parts.reload()
               onUpdated()

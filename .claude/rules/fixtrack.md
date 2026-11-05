@@ -54,9 +54,10 @@ Los clientes (`CUSTOMER`) se registran como personas pero no inician sesión. Co
 
 ## Fecha estimada de entrega
 
-- Obligatoria al abrir la orden, no anterior a hoy y visible en los comprobantes y el portal.
-- Se puede reprogramar con un motivo; queda registro de quién, cuándo, la fecha anterior y la nueva.
-- Una orden está atrasada si pasó esa fecha y no está en `READY`, `DELIVERED` ni `CANCELLED`.
+- Fecha y hora obligatorias al abrir la orden (puede ser el mismo día), posteriores al momento del ingreso y visibles en los comprobantes y el portal. Las órdenes anteriores a la hora solo tienen fecha (hora en `NULL`).
+- Se puede reprogramar con un motivo; queda registro de quién, cuándo, la fecha y hora anterior y la nueva.
+- Una orden está atrasada desde el minuto en que se cumple su fecha y hora sin estar en `READY`, `DELIVERED` ni `CANCELLED`; las que no tienen hora, desde el día siguiente a su fecha.
+- El tiempo restante no se guarda: se calcula en America/Bogota (`DeliveryDeadline` en el backend, `utils/timeRemaining.js` en el front).
 
 ## Garantías
 

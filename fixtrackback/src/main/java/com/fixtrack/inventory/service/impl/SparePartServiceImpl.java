@@ -52,6 +52,8 @@ import com.fixtrack.inventory.service.StockService;
 import com.fixtrack.person.service.PersonService;
 import com.fixtrack.setting.entity.SettingKey;
 import com.fixtrack.setting.service.SettingService;
+import com.fixtrack.infra.realtime.RealtimeEventType;
+import com.fixtrack.inventory.events.InventoryEventPublisher;
 
 import lombok.RequiredArgsConstructor;
 
@@ -81,6 +83,7 @@ public class SparePartServiceImpl implements SparePartService {
 	private final SparePartMapper sparePartMapper;
 	private final StockService stockService;
 	private final PersonService personService;
+	private final InventoryEventPublisher inventoryEvents;
 
 	// Búsqueda parcial sin mayúsculas ni tildes, filtros combinables y orden solo por los campos permitidos
 	@Override
@@ -156,7 +159,9 @@ public class SparePartServiceImpl implements SparePartService {
 				.costPrice(money(request.costPrice()))
 				.salePrice(money(request.salePrice()))
 				.build();
-		return sparePartMapper.toResponse(sparePartRepository.save(part));
+		SparePart saved = sparePartRepository.save(part);
+		inventoryEvents.sparePartChanged(RealtimeEventType.CREATED, saved);
+		return sparePartMapper.toResponse(saved);
 	}
 
 	// Repuesto nuevo pedido desde una orden: si ya existe la combinación tipo-modelo-calidad se elige ese, no se duplica
@@ -171,7 +176,7 @@ public class SparePartServiceImpl implements SparePartService {
 							+ ") en el inventario; elíjalo de la lista de repuestos");
 				});
 
-		return sparePartRepository.save(SparePart.builder()
+		SparePart saved = sparePartRepository.save(SparePart.builder()
 				.name(request.name().trim())
 				.sku(generateSku(partType, deviceModel, request.quality()))
 				.partType(partType)
@@ -181,6 +186,8 @@ public class SparePartServiceImpl implements SparePartService {
 				.costPrice(money(request.costPrice()))
 				.salePrice(money(request.salePrice()))
 				.build());
+		inventoryEvents.sparePartChanged(RealtimeEventType.CREATED, saved);
+		return saved;
 	}
 
 	// Edición parcial: solo cambia lo que llega; vuelve a validar SKU y la combinación tipo-modelo-calidad
@@ -228,6 +235,7 @@ public class SparePartServiceImpl implements SparePartService {
 		if (request.salePrice() != null) {
 			part.setSalePrice(money(request.salePrice()));
 		}
+		inventoryEvents.sparePartChanged(RealtimeEventType.UPDATED, part);
 		return sparePartMapper.toResponse(part);
 	}
 
@@ -235,7 +243,9 @@ public class SparePartServiceImpl implements SparePartService {
 	@Override
 	@Transactional
 	public void deactivate(Long id) {
-		findActive(id).setActive(false);
+		SparePart part = findActive(id);
+		part.setActive(false);
+		inventoryEvents.sparePartChanged(RealtimeEventType.DEACTIVATED, part);
 	}
 
 	// Entrada de mercancía: el stock sube y queda el movimiento IN_PURCHASE con su costo, motivo y responsable

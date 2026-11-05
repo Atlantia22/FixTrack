@@ -2,6 +2,7 @@ package com.fixtrack.intervention.dto.portal;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 import com.fixtrack.intervention.entity.InterventionStatus;
@@ -13,6 +14,7 @@ public record PortalWarrantyResponse(
 		RepairOutcome repairOutcome,
 		LocalDateTime receivedAt,
 		LocalDate estimatedDeliveryDate,
+		LocalTime estimatedDeliveryTime,
 		LocalDateTime deliveredAt,
 		List<PortalTimelineEntry> timeline) {
 }

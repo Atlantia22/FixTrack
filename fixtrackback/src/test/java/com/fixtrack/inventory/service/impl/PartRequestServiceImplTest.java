@@ -44,6 +44,7 @@ import com.fixtrack.inventory.entity.SparePart;
 import com.fixtrack.inventory.entity.StockMovement;
 import com.fixtrack.inventory.entity.Supplier;
 import com.fixtrack.inventory.entity.SupplierSparePart;
+import com.fixtrack.inventory.events.InventoryEventPublisher;
 import com.fixtrack.inventory.mapper.PartRequestMapper;
 import com.fixtrack.inventory.repository.PartRequestRepository;
 import com.fixtrack.inventory.repository.SparePartRepository;
@@ -91,6 +92,9 @@ class PartRequestServiceImplTest {
 	private SparePartService sparePartService;
 
 	@Mock
+	private InventoryEventPublisher inventoryEvents;
+
+	@Mock
 	private PersonService personService;
 
 	private PartRequestServiceImpl service;
@@ -101,7 +105,7 @@ class PartRequestServiceImplTest {
 	void setUp() {
 		service = new PartRequestServiceImpl(partRequestRepository, sparePartRepository, supplierRepository,
 				supplierSparePartRepository, interventionLookup, interventionService, interventionSparePartService,
-				stockService, sparePartService, personService, new PartRequestMapper(),
+				stockService, sparePartService, inventoryEvents, personService, new PartRequestMapper(),
 				Clock.fixed(Instant.parse("2026-10-27T15:00:00Z"), ZoneId.of("America/Bogota")));
 		intervention = Intervention.builder().id(18L).status(InterventionStatus.IN_REPAIR)
 				.technician(Person.builder().id(5L).fullName("Tito").build()).build();

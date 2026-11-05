@@ -4,6 +4,7 @@ import ConfirmDialog from '../../components/ConfirmDialog/ConfirmDialog'
 import DataTable from '../../components/DataTable/DataTable'
 import FormField from '../../components/FormField/FormField'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { TOPICS, useRealtime } from '../../hooks/useRealtime'
 import { useRemoteData } from '../../hooks/useRemoteData'
 import { useToast } from '../../hooks/useToast'
 import * as personService from '../../services/personService'
@@ -31,6 +32,9 @@ export default function PeopleList() {
     [debouncedSearch, role, active, page],
   )
   const specialties = useRemoteData(personService.listSpecialties, [])
+  useRealtime(TOPICS.PERSONS, ({ payload }) => {
+    if (payload.role !== ROLES.CUSTOMER) people.reload({ silent: true })
+  })
 
   function changeFilter(setter) {
     return (value) => {

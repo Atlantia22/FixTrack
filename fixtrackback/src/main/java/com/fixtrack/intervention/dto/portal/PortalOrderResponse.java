@@ -3,6 +3,7 @@ package com.fixtrack.intervention.dto.portal;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 import com.fixtrack.device.entity.DeviceType;
@@ -19,6 +20,7 @@ public record PortalOrderResponse(
 		RepairOutcome repairOutcome,
 		LocalDateTime receivedAt,
 		LocalDate estimatedDeliveryDate,
+		LocalTime estimatedDeliveryTime,
 		LocalDateTime deliveredAt,
 		BigDecimal estimatedPrice,
 		BigDecimal total,

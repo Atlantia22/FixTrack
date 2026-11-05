@@ -20,6 +20,7 @@ import com.fixtrack.cash.service.PaymentService;
 import com.fixtrack.common.ConflictException;
 import com.fixtrack.common.Money;
 import com.fixtrack.infra.security.AuthenticatedUser;
+import com.fixtrack.intervention.events.InterventionEventPublisher;
 import com.fixtrack.intervention.entity.Intervention;
 import com.fixtrack.intervention.entity.InterventionStatus;
 import com.fixtrack.intervention.mapper.InterventionCode;
@@ -37,6 +38,7 @@ public class PaymentServiceImpl implements PaymentService {
 	private final InterventionPricingService pricingService;
 	private final PersonService personService;
 	private final PaymentMapper paymentMapper;
+	private final InterventionEventPublisher interventionEvents;
 
 	// Abono mientras la orden siga abierta, cobro final solo lista para entregar y devolución hasta el saldo a favor
 	@Override
@@ -87,6 +89,8 @@ public class PaymentServiceImpl implements PaymentService {
 				.amount(amount)
 				.receivedBy(personService.getEntity(actor.id()))
 				.build());
+		// El saldo de la orden cambió: Salida y el detalle de la orden se actualizan en las otras pantallas
+		interventionEvents.updated(intervention);
 		return summarize(intervention);
 	}
 

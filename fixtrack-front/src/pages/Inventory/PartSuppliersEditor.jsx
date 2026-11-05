@@ -4,6 +4,7 @@ import { useToast } from '../../hooks/useToast'
 import * as sparePartService from '../../services/sparePartService'
 import { getErrorMessage } from '../../utils/errors'
 import { formatCurrency } from '../../utils/format'
+import SearchSelect from '../../components/SearchSelect/SearchSelect'
 import './PartSuppliersEditor.css'
 
 const EMPTY_ROW = { supplierId: '', supplierSku: '', lastCost: '', leadTimeDays: '', preferred: false }
@@ -67,15 +68,19 @@ export default function PartSuppliersEditor({ part, links, suppliers, onSaved })
           <legend className="visually-hidden">Proveedor {index + 1}</legend>
           <label className="part-suppliers__field part-suppliers__field--wide">
             <span className="form-label">Proveedor</span>
-            <select className="form-input" value={row.supplierId} onChange={(event) => update(index, 'supplierId', event.target.value)}>
-              <option value="">Elija el proveedor</option>
-              {row.supplierActive === false && <option value={row.supplierId}>{row.supplierName} (dado de baja)</option>}
-              {suppliers.map((supplier) => (
-                <option key={supplier.id} value={supplier.id} disabled={usedIds.includes(String(supplier.id)) && String(supplier.id) !== row.supplierId}>
-                  {supplier.name}
-                </option>
-              ))}
-            </select>
+            <SearchSelect
+              id={`part-supplier-${index}`}
+              options={[
+                ...(row.supplierActive === false ? [{ value: row.supplierId, label: `${row.supplierName} (dado de baja)` }] : []),
+                ...suppliers
+                  .filter((supplier) => !usedIds.includes(String(supplier.id)) || String(supplier.id) === row.supplierId)
+                  .map((supplier) => ({ value: supplier.id, label: supplier.name })),
+              ]}
+              value={row.supplierId}
+              placeholder="Escriba el proveedor"
+              emptyMessage="No hay proveedores con ese nombre"
+              onChange={(value) => update(index, 'supplierId', value)}
+            />
           </label>
           <label className="part-suppliers__field">
             <span className="form-label">Código</span>

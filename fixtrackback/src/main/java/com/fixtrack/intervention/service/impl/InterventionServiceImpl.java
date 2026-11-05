@@ -6,6 +6,7 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -53,6 +54,7 @@ import com.fixtrack.intervention.dto.StatusChangeRequest;
 import com.fixtrack.intervention.dto.StatusHistoryResponse;
 import com.fixtrack.intervention.dto.UnclaimedOrderResponse;
 import com.fixtrack.intervention.dto.WarrantyRequest;
+import com.fixtrack.intervention.events.InterventionEventPublisher;
 import com.fixtrack.intervention.entity.ApprovalStatus;
 import com.fixtrack.intervention.entity.DeliveryDateChange;
 import com.fixtrack.intervention.entity.FindingOrigin;
@@ -110,15 +112,14 @@ public class InterventionServiceImpl implements InterventionService {
 	private final InterventionMapper interventionMapper;
 	private final Clock clock;
 	private final ApplicationEventPublisher eventPublisher;
+	private final InterventionEventPublisher interventionEvents;
 
 	// Recibe el equipo: cliente, equipo, orden, servicio inicial e historial en una sola transacción
 	@Override
 	@Transactional
 	public CreatedInterventionResponse create(CreateInterventionRequest request, AuthenticatedUser actor) {
 		requireFrontDesk(actor, "Solo el asesor puede recibir equipos");
-		if (request.estimatedDeliveryDate().isBefore(today())) {
-			throw new BusinessRuleException("La fecha estimada de entrega no puede ser anterior a hoy");
-		}
+		requireFutureDelivery(request.estimatedDeliveryDate(), request.estimatedDeliveryTime());
 
 		// 1. Cliente y equipo: se reutilizan si ya existen
 		Person customer = personService.registerOrUpdateCustomer(request.customer());
@@ -142,6 +143,7 @@ public class InterventionServiceImpl implements InterventionService {
 				.unlockCode(blankToNull(request.unlockCode()))
 				.estimatedPrice(money(request.estimatedPrice()))
 				.estimatedDeliveryDate(request.estimatedDeliveryDate())
+				.estimatedDeliveryTime(request.estimatedDeliveryTime())
 				.build());
 
 		// 4. Cada daño reportado como hallazgo inicial aprobado (sin repetir) y primer registro del historial
@@ -183,23 +185,23 @@ public class InterventionServiceImpl implements InterventionService {
 				&& normalized.receivedFrom().isAfter(normalized.receivedTo())) {
 			throw new BusinessRuleException("La fecha inicial no puede ser posterior a la final");
 		}
-		LocalDate today = today();
+		LocalDateTime now = now();
 		return PageResponse.from(interventionRepository
-				.findAll(InterventionSpecifications.matching(normalized, code, today, unclaimedBefore()), pageable)
-				.map(intervention -> interventionMapper.toSummary(intervention, today)));
+				.findAll(InterventionSpecifications.matching(normalized, code, now, unclaimedBefore()), pageable)
+				.map(intervention -> interventionMapper.toSummary(intervention, now)));
 	}
 
 	// Listas desde hace más de UNCLAIMED_ALERT_DAYS días, las más antiguas primero, con el contacto del cliente
 	@Override
 	@Transactional(readOnly = true)
 	public List<UnclaimedOrderResponse> findUnclaimed() {
-		LocalDate today = today();
+		LocalDateTime now = now();
 		InterventionFilter unclaimed = new InterventionFilter(null, null, null, null, null, null, null, null, false, false, true);
 		return interventionRepository
-				.findAll(InterventionSpecifications.matching(unclaimed, null, today, unclaimedBefore()),
+				.findAll(InterventionSpecifications.matching(unclaimed, null, now, unclaimedBefore()),
 						Sort.by("readyAt", "id"))
 				.stream()
-				.map(intervention -> interventionMapper.toUnclaimed(intervention, today))
+				.map(intervention -> interventionMapper.toUnclaimed(intervention, now))
 				.toList();
 	}
 
@@ -242,9 +244,7 @@ public class InterventionServiceImpl implements InterventionService {
 		if (today().isAfter(until)) {
 			throw new ConflictException("La garantía de " + code + " venció el " + until);
 		}
-		if (request.estimatedDeliveryDate().isBefore(today())) {
-			throw new BusinessRuleException("La fecha estimada de entrega no puede ser anterior a hoy");
-		}
+		requireFutureDelivery(request.estimatedDeliveryDate(), request.estimatedDeliveryTime());
 
 		// 2. Contacto del cliente con la regla de «No tiene»; lo que no llega se conserva
 		Person customer = original.getDevice().getOwner();
@@ -267,6 +267,7 @@ public class InterventionServiceImpl implements InterventionService {
 				.unlockCode(blankToNull(request.unlockCode()))
 				.estimatedPrice(BigDecimal.ZERO.setScale(2))
 				.estimatedDeliveryDate(request.estimatedDeliveryDate())
+				.estimatedDeliveryTime(request.estimatedDeliveryTime())
 				.build());
 
 		// 4. Servicio reportado e historial, igual que un ingreso
@@ -303,7 +304,7 @@ public class InterventionServiceImpl implements InterventionService {
 		InterventionFilter ready = new InterventionFilter(null, null, null, null, InterventionStatus.READY, null, null, null,
 				false, false, false);
 		List<Intervention> orders = interventionRepository.findAll(
-				InterventionSpecifications.matching(ready, null, today, unclaimedBefore()),
+				InterventionSpecifications.matching(ready, null, now(), unclaimedBefore()),
 				Sort.by("readyAt", "id"));
 		List<Long> ids = orders.stream().map(Intervention::getId).toList();
 		Map<Long, BigDecimal> totals = pricingService.calculateTotals(orders);
@@ -312,7 +313,7 @@ public class InterventionServiceImpl implements InterventionService {
 			BigDecimal total = totals.get(order.getId());
 			BigDecimal orderPaid = paid.getOrDefault(order.getId(), BigDecimal.ZERO.setScale(2));
 			BigDecimal difference = total.subtract(orderPaid);
-			return new ReadyForDeliveryResponse(interventionMapper.toSummary(order, today), total, orderPaid,
+			return new ReadyForDeliveryResponse(interventionMapper.toSummary(order, now()), total, orderPaid,
 					difference.max(BigDecimal.ZERO).setScale(2), difference.negate().max(BigDecimal.ZERO).setScale(2));
 		}).toList();
 	}
@@ -347,10 +348,11 @@ public class InterventionServiceImpl implements InterventionService {
 		requireFrontDesk(actor, "Solo el asesor puede asignar el técnico");
 		Intervention intervention = findOpenIntervention(id);
 		intervention.setTechnician(assignableTechnician(technicianId));
+		interventionEvents.updated(intervention);
 		return toDetail(intervention, actor);
 	}
 
-	// Reprograma la entrega y deja registro de quién, cuándo, la fecha anterior, la nueva y el motivo
+	// Reprograma la entrega y deja registro de quién, cuándo, la fecha y hora anterior, la nueva y el motivo
 	@Override
 	@Transactional
 	public InterventionDetailResponse rescheduleDelivery(Long id, RescheduleDeliveryRequest request,
@@ -359,21 +361,26 @@ public class InterventionServiceImpl implements InterventionService {
 		if (!isFrontDesk(actor) && !isAssignedTechnician(intervention, actor)) {
 			throw new ForbiddenException("Solo el asesor o el técnico asignado pueden reprogramar la entrega");
 		}
-		if (request.newDate().isBefore(today())) {
-			throw new BusinessRuleException("La nueva fecha de entrega no puede ser anterior a hoy");
+		if (!request.newDate().atTime(request.newTime()).isAfter(now())) {
+			throw new BusinessRuleException("La nueva fecha y hora de entrega debe ser posterior a este momento");
 		}
-		if (request.newDate().equals(intervention.getEstimatedDeliveryDate())) {
-			throw new BusinessRuleException("La nueva fecha es igual a la fecha estimada actual");
+		if (request.newDate().equals(intervention.getEstimatedDeliveryDate())
+				&& request.newTime().equals(intervention.getEstimatedDeliveryTime())) {
+			throw new BusinessRuleException("La nueva fecha y hora es igual a la entrega estimada actual");
 		}
 
 		deliveryDateChangeRepository.save(DeliveryDateChange.builder()
 				.intervention(intervention)
 				.previousDate(intervention.getEstimatedDeliveryDate())
+				.previousTime(intervention.getEstimatedDeliveryTime())
 				.newDate(request.newDate())
+				.newTime(request.newTime())
 				.reason(request.reason().trim())
 				.changedBy(personService.getEntity(actor.id()))
 				.build());
 		intervention.setEstimatedDeliveryDate(request.newDate());
+		intervention.setEstimatedDeliveryTime(request.newTime());
+		interventionEvents.rescheduled(intervention);
 		return toDetail(intervention, actor);
 	}
 
@@ -393,6 +400,7 @@ public class InterventionServiceImpl implements InterventionService {
 		if (solution != null) {
 			intervention.setSolution(solution);
 		}
+		interventionEvents.updated(intervention);
 		return toDetail(intervention, actor);
 	}
 
@@ -411,6 +419,7 @@ public class InterventionServiceImpl implements InterventionService {
 				.build());
 		findingRepository.flush();
 		pricingService.reviewAdditionalFindings(intervention);
+		interventionEvents.updated(intervention);
 		return toDetail(intervention, actor);
 	}
 
@@ -426,6 +435,7 @@ public class InterventionServiceImpl implements InterventionService {
 		intervention.setLaborCost(laborCost);
 		interventionRepository.flush();
 		pricingService.reviewAdditionalFindings(intervention);
+		interventionEvents.updated(intervention);
 		return toDetail(intervention, actor);
 	}
 
@@ -447,6 +457,7 @@ public class InterventionServiceImpl implements InterventionService {
 		finding.setApprovalStatus(request.decision());
 		finding.setRespondedBy(personService.getEntity(actor.id()));
 		finding.setRespondedAt(LocalDateTime.now(clock));
+		interventionEvents.updated(intervention);
 		return toDetail(intervention, actor);
 	}
 
@@ -499,6 +510,7 @@ public class InterventionServiceImpl implements InterventionService {
 		}
 		intervention.setRepairOutcome(outcome);
 		intervention.setOutcomeReason(reason);
+		interventionEvents.updated(intervention);
 		return toDetail(intervention, actor);
 	}
 
@@ -636,6 +648,7 @@ public class InterventionServiceImpl implements InterventionService {
 		}
 	}
 
+	// Todo cambio de estado pasa por aquí: guarda el historial y avisa en tiempo real (creación o cambio de estado)
 	private void recordStatusChange(Intervention intervention, InterventionStatus from, InterventionStatus to,
 			Person changedBy, String note) {
 		historyRepository.save(InterventionStatusHistory.builder()
@@ -645,6 +658,11 @@ public class InterventionServiceImpl implements InterventionService {
 				.changedBy(changedBy)
 				.note(note)
 				.build());
+		if (from == null) {
+			interventionEvents.created(intervention);
+		} else {
+			interventionEvents.statusChanged(intervention);
+		}
 	}
 
 	private Person assignableTechnician(Long technicianId) {
@@ -663,7 +681,7 @@ public class InterventionServiceImpl implements InterventionService {
 				? interventionRepository.findByWarrantyOfIdOrderByWarrantyNumberAsc(intervention.getId())
 				: List.of();
 		return interventionMapper.toDetail(intervention, findings, showUnlockCode, actor.role() != Role.ADVISOR,
-				charges(intervention), nextStatuses(intervention, findings), warranties, today());
+				charges(intervention), nextStatuses(intervention, findings), warranties, now());
 	}
 
 	private ChargesSummary charges(Intervention intervention) {
@@ -752,6 +770,17 @@ public class InterventionServiceImpl implements InterventionService {
 
 	private LocalDate today() {
 		return LocalDate.now(clock);
+	}
+
+	private LocalDateTime now() {
+		return LocalDateTime.now(clock);
+	}
+
+	// La entrega acordada debe quedar después del momento del ingreso (que es ahora); puede ser el mismo día
+	private void requireFutureDelivery(LocalDate date, LocalTime time) {
+		if (!date.atTime(time).isAfter(now())) {
+			throw new BusinessRuleException("La fecha y hora estimada de entrega debe ser posterior al momento del ingreso");
+		}
 	}
 
 	private BigDecimal money(BigDecimal value) {

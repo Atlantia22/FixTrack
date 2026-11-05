@@ -34,7 +34,7 @@ public final class InterventionSpecifications {
 	// y el documento como patrón LIKE escapado con '!'
 	// unclaimedBefore: las listas desde antes de ese momento cuentan como no reclamadas
 	public static Specification<Intervention> matching(InterventionFilter filter, InterventionCode.Parsed code,
-			LocalDate today, LocalDateTime unclaimedBefore) {
+			LocalDateTime now, LocalDateTime unclaimedBefore) {
 		return (root, query, cb) -> {
 			List<Predicate> predicates = new ArrayList<>();
 			if (code != null) {
@@ -73,7 +73,7 @@ public final class InterventionSpecifications {
 				predicates.add(cb.lessThan(root.get("readyAt"), unclaimedBefore));
 			}
 			if (filter.overdue() != null) {
-				Predicate overdue = overdue(root, cb, today);
+				Predicate overdue = overdue(root, cb, now);
 				predicates.add(filter.overdue() ? overdue : cb.not(overdue));
 			}
 			return cb.and(predicates.toArray(Predicate[]::new));
@@ -86,8 +86,13 @@ public final class InterventionSpecifications {
 				cb.greaterThanOrEqualTo(root.get("deliveredAt"), from), cb.lessThan(root.get("deliveredAt"), to));
 	}
 
-	// Atrasada: pasó la fecha estimada y no está lista, entregada ni cancelada
-	private static Predicate overdue(Root<Intervention> root, CriteriaBuilder cb, LocalDate today) {
-		return cb.and(cb.lessThan(root.get("estimatedDeliveryDate"), today), root.get("status").in(CAN_BE_OVERDUE));
+	// Atrasada (misma regla de DeliveryDeadline): no está lista, entregada ni cancelada y se cumplió el plazo;
+	// con hora, desde ese minuto; sin hora (órdenes antiguas), desde el día siguiente a la fecha
+	private static Predicate overdue(Root<Intervention> root, CriteriaBuilder cb, LocalDateTime now) {
+		Predicate dayPassed = cb.lessThan(root.get("estimatedDeliveryDate"), now.toLocalDate());
+		Predicate timePassed = cb.and(cb.equal(root.get("estimatedDeliveryDate"), now.toLocalDate()),
+				cb.isNotNull(root.get("estimatedDeliveryTime")),
+				cb.lessThanOrEqualTo(root.get("estimatedDeliveryTime"), now.toLocalTime()));
+		return cb.and(cb.or(dayPassed, timePassed), root.get("status").in(CAN_BE_OVERDUE));
 	}
 }

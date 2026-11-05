@@ -48,6 +48,17 @@ export function displayOrNT(value) {
   return value ? value : 'NT'
 }
 
+// Entrega acordada con fecha y hora («5 nov 2026, 3:30 p. m.»); las órdenes antiguas solo tienen fecha
+export function formatDelivery(date, time) {
+  if (!date) return EMPTY
+  return time ? localDateTimeFormatter.format(new Date(`${date}T${time.slice(0, 5)}:00Z`)) : formatDate(date)
+}
+
+// Hora actual en Bogotá como HH:mm, para el mínimo del campo de hora cuando la entrega es hoy
+export function currentTimeInBogota() {
+  return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TIME_ZONE }).format(new Date())
+}
+
 // Fecha de hoy en Bogotá como YYYY-MM-DD, para el mínimo de los campos de fecha
 export function todayInBogota() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE }).format(new Date())

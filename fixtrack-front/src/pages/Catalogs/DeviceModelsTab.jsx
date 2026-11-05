@@ -8,6 +8,7 @@ import { useToast } from '../../hooks/useToast'
 import * as catalogService from '../../services/catalogService'
 import { getErrorMessage } from '../../utils/errors'
 import { DEVICE_TYPE_LABELS, toOptions } from '../../utils/labels'
+import SearchSelect from '../../components/SearchSelect/SearchSelect'
 import DeviceModelFormModal from './DeviceModelFormModal'
 import './DeviceModelsTab.css'
 
@@ -61,10 +62,14 @@ export default function DeviceModelsTab() {
         <div className="filters">
           <FormField id="models-brand" label="Marca">
             {(props) => (
-              <select {...props} className="form-input" value={brandId} onChange={(event) => setBrandId(event.target.value)}>
-                <option value="">Todas</option>
-                {(brands.data ?? []).map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-              </select>
+              <SearchSelect
+                {...props}
+                options={(brands.data ?? []).map((brand) => ({ value: brand.id, label: brand.name }))}
+                value={brandId}
+                placeholder="Todas"
+                emptyMessage="No hay marcas con ese nombre"
+                onChange={setBrandId}
+              />
             )}
           </FormField>
           <FormField id="models-type" label="Tipo de equipo">

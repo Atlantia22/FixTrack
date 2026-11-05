@@ -5,6 +5,7 @@ import { useToast } from '../../hooks/useToast'
 import * as catalogService from '../../services/catalogService'
 import { getErrorMessage, getFieldErrors } from '../../utils/errors'
 import { DEVICE_TYPE_LABELS, toOptions } from '../../utils/labels'
+import SearchSelect from '../../components/SearchSelect/SearchSelect'
 import './DeviceModelFormModal.css'
 
 // Alta y edición de un modelo de equipo: marca, nombre y tipo
@@ -65,9 +66,14 @@ export default function DeviceModelFormModal({ model, brands, onClose, onSaved }
       <form id={formId} className="device-model-form" onSubmit={handleSubmit} noValidate>
         <FormField id={`${formId}-brand`} label="Marca" required>
           {(props) => (
-            <select {...props} className="form-input" value={form.brandId} onChange={(event) => update('brandId', event.target.value)}>
-              {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-            </select>
+            <SearchSelect
+              {...props}
+              options={brands.map((brand) => ({ value: brand.id, label: brand.name }))}
+              value={form.brandId}
+              placeholder="Escriba la marca"
+              emptyMessage="No hay marcas con ese nombre"
+              onChange={(value) => update('brandId', value)}
+            />
           )}
         </FormField>
         <FormField id={`${formId}-name`} label="Nombre del modelo" error={errors.name} required>

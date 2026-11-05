@@ -5,6 +5,7 @@ import { useToast } from '../../hooks/useToast'
 import * as sparePartService from '../../services/sparePartService'
 import { getErrorMessage, getFieldErrors } from '../../utils/errors'
 import { QUALITY_LABELS, toOptions } from '../../utils/labels'
+import SearchSelect from '../../components/SearchSelect/SearchSelect'
 import './SparePartFormModal.css'
 
 const MONEY_PATTERN = /^\d{1,10}(\.\d{1,2})?$/
@@ -115,26 +116,39 @@ export default function SparePartFormModal({ part, partTypes, brands, models, on
         </FormField>
         <FormField id={`${formId}-type`} label="Tipo de repuesto" error={errors.partTypeId} required>
           {(props) => (
-            <select {...props} className="form-input" value={form.partTypeId} onChange={(event) => update('partTypeId', event.target.value)}>
-              <option value="">Elija un tipo</option>
-              {partTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
-            </select>
+            <SearchSelect
+              {...props}
+              options={partTypes.map((type) => ({ value: type.id, label: type.name }))}
+              value={form.partTypeId}
+              placeholder="Escriba el tipo"
+              emptyMessage="No hay tipos con ese nombre"
+              onChange={(value) => update('partTypeId', value)}
+            />
           )}
         </FormField>
         <FormField id={`${formId}-brand`} label="Marca" required>
           {(props) => (
-            <select {...props} className="form-input" value={form.brandId} onChange={(event) => changeBrand(event.target.value)}>
-              <option value="">Elija una marca</option>
-              {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-            </select>
+            <SearchSelect
+              {...props}
+              options={brands.map((brand) => ({ value: brand.id, label: brand.name }))}
+              value={form.brandId}
+              placeholder="Escriba la marca"
+              emptyMessage="No hay marcas con ese nombre"
+              onChange={changeBrand}
+            />
           )}
         </FormField>
         <FormField id={`${formId}-model`} label="Modelo principal" error={errors.deviceModelId} required>
           {(props) => (
-            <select {...props} className="form-input" value={form.deviceModelId} disabled={!form.brandId} onChange={(event) => update('deviceModelId', event.target.value)}>
-              <option value="">{form.brandId ? 'Elija un modelo' : 'Primero elija la marca'}</option>
-              {brandModels.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}
-            </select>
+            <SearchSelect
+              {...props}
+              options={brandModels.map((model) => ({ value: model.id, label: model.name }))}
+              value={form.deviceModelId}
+              disabled={!form.brandId}
+              placeholder={form.brandId ? 'Escriba el modelo' : 'Primero elija la marca'}
+              emptyMessage="No hay modelos con ese nombre"
+              onChange={(value) => update('deviceModelId', value)}
+            />
           )}
         </FormField>
         <FormField
@@ -160,7 +174,7 @@ export default function SparePartFormModal({ part, partTypes, brands, models, on
         <FormField id={`${formId}-cost`} label="Costo" error={errors.costPrice} required>
           {(props) => <input {...props} className="form-input" inputMode="decimal" value={form.costPrice} onChange={(event) => update('costPrice', event.target.value.replace(',', '.'))} />}
         </FormField>
-        <FormField id={`${formId}-sale`} label="Precio de venta" error={errors.salePrice} required>
+        <FormField id={`${formId}-sale`} label="Precio de venta" error={errors.salePrice} hint="Con instalación incluida: es lo que paga el cliente por el repuesto puesto." required>
           {(props) => <input {...props} className="form-input" inputMode="decimal" value={form.salePrice} onChange={(event) => update('salePrice', event.target.value.replace(',', '.'))} />}
         </FormField>
         <FormField id={`${formId}-description`} label="Descripción" error={errors.description} className="form-grid__full">

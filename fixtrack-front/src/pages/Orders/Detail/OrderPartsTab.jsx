@@ -4,7 +4,7 @@ import ConfirmDialog from '../../../components/ConfirmDialog/ConfirmDialog'
 import DataTable from '../../../components/DataTable/DataTable'
 import FormField from '../../../components/FormField/FormField'
 import { useAuth } from '../../../hooks/useAuth'
-import { TOPICS, useRealtime } from '../../../hooks/useRealtime'
+import { TOPICS, useInterventionsTopic, useRealtime } from '../../../hooks/useRealtime'
 import { useRemoteData } from '../../../hooks/useRemoteData'
 import { useToast } from '../../../hooks/useToast'
 import * as catalogService from '../../../services/catalogService'
@@ -47,7 +47,7 @@ export default function OrderPartsTab({ order, onUpdated }) {
   const addingNew = sparePartId === OTHER_PART
 
   const parts = useRemoteData(() => interventionService.listUsedParts(order.id), [order.id])
-  useRealtime(TOPICS.INTERVENTIONS, ({ id }) => {
+  useRealtime(useInterventionsTopic(), ({ id }) => {
     if (id === order.id) parts.reload({ silent: true })
   })
   const partTypes = useRemoteData(catalogService.listPartTypes, [])

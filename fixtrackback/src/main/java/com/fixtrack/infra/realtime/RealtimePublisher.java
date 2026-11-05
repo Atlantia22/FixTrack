@@ -21,4 +21,14 @@ public class RealtimePublisher {
 		RealtimeEvent event = new RealtimeEvent(type, entity, id, payload, clock.instant());
 		applicationEventPublisher.publishEvent(new RealtimeMessage(destination, event));
 	}
+
+	// Aviso a una sola persona (por su correo, el nombre de su sesión): llega a su cola privada /user/queue/...
+	public void publishToUser(String username, String queue, RealtimeEventType type, String entity, Long id,
+			Map<String, Object> payload) {
+		if (username == null || username.isBlank()) {
+			return;
+		}
+		RealtimeEvent event = new RealtimeEvent(type, entity, id, payload, clock.instant());
+		applicationEventPublisher.publishEvent(new RealtimeMessage(queue, event, username));
+	}
 }

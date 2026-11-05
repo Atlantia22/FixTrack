@@ -6,11 +6,13 @@ Cubre el ciclo completo de una reparación: el ingreso del equipo, el diagnósti
 
 ## Funcionalidades
 
-- **Órdenes de reparación** con código consecutivo (`FT-00001`), fecha estimada de entrega reprogramable, historial de estados y comprobantes en PDF.
-- **Portal del cliente** (`/consulta`): el cliente ve el estado de su orden con el código y una clave de 4 dígitos.
+- **Órdenes de reparación** con código consecutivo (`FT-00001`), fecha y hora estimada de entrega reprogramable, **tiempo restante** en el listado, historial de estados y comprobantes en PDF que se imprimen directo.
+- **Ingreso** con varios daños reportados, contraseña o **patrón de desbloqueo dibujado** (cifrados) y documento validado por tipo.
+- **Tiempo real** (WebSocket): las pantallas se actualizan solas cuando otra persona cambia una orden, el stock o una solicitud.
+- **Portal del cliente** (`/consulta`): el cliente ve el estado de su orden con el código y una clave de 4 dígitos, y se actualiza solo.
 - **Diagnóstico y daños adicionales**, con aprobación del cliente cuando el total supera el presupuesto.
-- **Inventario de repuestos** con calidades (original, OEM, genérico), stock mínimo, alertas, entradas de mercancía y movimientos.
-- **Solicitudes de repuestos** del técnico al coordinador cuando no hay unidades en inventario.
+- **Inventario de repuestos** con calidades (original, OEM, genérico), stock mínimo, alertas en vivo, entradas de mercancía, movimientos y buscadores en todas las listas.
+- **Solicitudes de repuestos** del técnico al coordinador, o alta directa de un repuesto que el técnico consiguió por fuera.
 - **Pagos y caja**: abonos, cobro final, entrega y cierre de caja diario.
 - **Garantías** anexadas a la orden original (`FT-00001-G1`), a precio cero.
 - **Informes** de ganancias y de trabajo por técnico, con gráficos.
@@ -31,19 +33,22 @@ Los clientes no inician sesión: consultan su orden en el portal público.
 
 | Parte | Tecnologías |
 |---|---|
-| Backend (`fixtrackback`) | Java 25, Spring Boot 4.1, Spring Data JPA, Spring Security con JWT, Bean Validation, Lombok, OpenPDF |
+| Backend (`fixtrackback`) | Java 25, Spring Boot 4.1, Spring Data JPA, Spring Security con JWT, WebSocket (STOMP + SockJS), Bean Validation, Lombok, OpenPDF |
 | Base de datos | MySQL 8 |
-| Frontend (`fixtrack-front`) | React 19, Vite 8, React Router, Axios, Recharts, React Icons (Material Design), CSS propio |
+| Frontend (`fixtrack-front`) | React 19, Vite 8, React Router, Axios, STOMP.js + SockJS, Recharts, React Icons (Material Design), CSS propio |
 
 ## Estructura
 
 ```
 FixTrack/
-├── fixtrackback/     # API REST con Spring Boot (http://localhost:8080/api)
+├── fixtrackback/     # API REST con Spring Boot (http://localhost:8080/api) y tiempo real (http://localhost:8080/ws)
+│   └── db/migration/ # scripts SQL de los cambios de esquema, para aplicarlos a mano
 └── fixtrack-front/   # Aplicación web con React y Vite (http://localhost:5173)
 ```
 
-El backend está organizado por dominio (`person`, `device`, `inventory`, `intervention`, `cash`, `setting`). Cada dominio tiene sus capas de controlador, servicio, repositorio, entidad, DTO y mapper.
+El backend está organizado por dominio (`person`, `device`, `inventory`, `intervention`, `cash`, `setting`). Cada dominio tiene sus capas de controlador, servicio, repositorio, entidad, DTO y mapper, y su carpeta `events` con los avisos en tiempo real.
+
+La guía completa del sistema (permisos, bloqueos, reglas de negocio y problemas frecuentes) está en [DOCUMENTACION.md](DOCUMENTACION.md), y el análisis de seguridad en [ANALISIS_RIESGOS.md](ANALISIS_RIESGOS.md).
 
 ## Requisitos
 
@@ -87,7 +92,7 @@ cd fixtrackback
 ./mvnw spring-boot:run      # en Windows: mvnw.cmd spring-boot:run
 ```
 
-La base de datos `fixtrack` y sus tablas se crean solas al arrancar.
+La base de datos `fixtrack` y sus tablas se crean solas al arrancar (`ddl-auto: update`). Si se usa `DDL_AUTO=validate`, aplique antes los scripts de `fixtrackback/db/migration/`.
 
 ### 3. Configurar y arrancar el frontend
 
@@ -98,7 +103,7 @@ npm install
 npm run dev
 ```
 
-Abre http://localhost:5173. El frontend usa siempre el puerto 5173, porque el backend solo acepta peticiones (CORS) desde ese origen.
+Abre http://localhost:5173. El frontend usa siempre el puerto 5173, porque el backend solo acepta peticiones (CORS) desde ese origen, también en el canal en tiempo real.
 
 ## Usuarios de prueba
 
@@ -117,13 +122,14 @@ Las cuentas de prueba son solo para desarrollo. En producción deja `DEMO_USERS_
 
 | Dónde | Comando | Qué hace |
 |---|---|---|
-| `fixtrackback` | `./mvnw test` | Ejecuta las pruebas del backend |
+| `fixtrackback` | `./mvnw clean test` | Compila desde cero y ejecuta las pruebas del backend |
 | `fixtrack-front` | `npm run dev` | Servidor de desarrollo |
 | `fixtrack-front` | `npm run build` | Compila para producción en `dist/` |
 | `fixtrack-front` | `npm run lint` | Revisa el código con oxlint |
+| `fixtrack-front` | `npm test` | Pruebas de las utilidades del front (ejecutor de Node) |
 
 ## Configuración general
 
-- Toda la aplicación trabaja en la zona horaria `America/Bogota`.
+- Toda la aplicación trabaja en la zona horaria `America/Bogota`, también el tiempo restante de entrega.
 - El dinero se muestra en pesos colombianos (COP).
 - Los secretos solo se leen de variables de entorno: los archivos `.env` no se suben al repositorio.

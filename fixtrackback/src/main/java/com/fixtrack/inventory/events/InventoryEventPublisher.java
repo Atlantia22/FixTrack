@@ -49,6 +49,11 @@ public class InventoryEventPublisher {
 		payload.put("interventionId", request.getIntervention().getId());
 		payload.put("requestedById", request.getRequestedBy() == null ? null : request.getRequestedBy().getId());
 		publisher.publish(RealtimeTopics.PART_REQUESTS, type, PART_REQUEST, request.getId(), payload);
+		// El técnico solo recibe sus solicitudes, en su cola privada
+		if (request.getRequestedBy() != null) {
+			publisher.publishToUser(request.getRequestedBy().getEmail(), RealtimeTopics.MY_PART_REQUESTS, type,
+					PART_REQUEST, request.getId(), payload);
+		}
 	}
 
 	// Solo los cambios de estado de stock generan alerta: bajar al mínimo, agotarse o volver a tener suficiente

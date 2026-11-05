@@ -10,13 +10,14 @@ Para instalarlo, ver el [README](README.md). Para las reglas de código, ver `.c
 
 | Qué | Dirección | Notas |
 |---|---|---|
-| Aplicación web | http://localhost:5173 | Puerto fijo: el backend solo acepta peticiones (CORS) desde ese origen |
+| Aplicación web | http://localhost:5173 | Puerto fijo en desarrollo; el backend acepta los orígenes de `CORS_ALLOWED_ORIGINS`, que por defecto es este |
 | Inicio de sesión | http://localhost:5173/login | Para el personal interno |
 | Portal del cliente | http://localhost:5173/consulta | Público, sin cuenta; enlazado desde el login con «Consulta tu equipo» |
 | API REST | http://localhost:8080/api | Todas las rutas empiezan por `/api` |
+| Tiempo real | http://localhost:8080/ws | STOMP sobre WebSocket con SockJS de respaldo (ver sección 15) |
 | Base de datos | MySQL 8 en `localhost:3306`, base `fixtrack` | Se crea sola al arrancar |
 
-Toda la aplicación usa la zona horaria **America/Bogota**. «Hoy», las órdenes atrasadas, las no reclamadas, los informes y el cierre de caja se calculan con esa hora.
+Toda la aplicación usa la zona horaria **America/Bogota**. «Hoy», las órdenes atrasadas, el tiempo restante de entrega, las no reclamadas, los informes y el cierre de caja se calculan con esa hora, sin importar la hora del equipo del usuario.
 
 ---
 
@@ -82,6 +83,7 @@ Quien cambia su propia contraseña conserva la sesión del equipo donde la cambi
 | **Login desde una IP** | 10 intentos fallidos en 15 minutos | Hasta que los fallos salgan de la ventana de 15 minutos | «Demasiados intentos fallidos desde su conexión. Espere unos minutos e intente de nuevo.» (429) | Esperar; reiniciar el backend lo borra |
 | **Portal desde una IP** | 10 consultas fallidas en 15 minutos | Igual que el login | «Demasiados intentos desde su conexión…» (429) | Igual que el login |
 | **Código de una orden en el portal** | 5 claves erradas seguidas sobre el mismo código | 15 minutos, aunque luego llegue la clave correcta | El mismo mensaje de «no encontramos una orden con ese código y clave» | Esperar 15 minutos. Se guarda en la base de datos, así que reiniciar no lo borra |
+| **Cambio de la propia contraseña** | 10 contraseñas actuales erradas en 15 minutos, por usuario | Hasta que los fallos salgan de la ventana | «Demasiados intentos con la contraseña actual…» (429) | Esperar; reiniciar el backend lo borra |
 
 Detalles:
 
@@ -126,13 +128,14 @@ ADMIN ──► COORDINATOR ──► ADVISOR
 | Diagnóstico, solución, daños adicionales y mano de obra | | Sus órdenes | | ✔ |
 | Registrar y corregir repuestos usados | | Sus órdenes | | ✔ |
 | Cambiar el estado de la orden | | Sus órdenes | | ✔ |
-| Reprogramar la fecha estimada de entrega | ✔ | Sus órdenes | ✔ | ✔ |
+| Reprogramar la fecha y hora estimada de entrega | ✔ | Sus órdenes | ✔ | ✔ |
 | Registrar la respuesta del cliente sobre daños adicionales | ✔ | | ✔ | ✔ |
 | Registrar abonos y cobro final, entregar, cancelar | ✔ | | ✔ | ✔ |
 | Abrir garantías | ✔ | | ✔ | ✔ |
 | Reimprimir el comprobante de ingreso (genera clave nueva) | ✔ | | ✔ | ✔ |
 | Cierre de caja propio | ✔ | | ✔ | ✔ |
 | Solicitar repuestos que no hay en inventario | | Sus órdenes | | ✔ |
+| Agregar al inventario un repuesto nuevo desde la orden («Otro»): conseguido por fuera o para pedirlo | | Sus órdenes | | |
 | Inventario, entradas, catálogos, proveedores y solicitudes | | | ✔ | ✔ |
 | Personal, roles, especialidades y parámetros | | | | ✔ |
 | Ver la ganancia | | De sus órdenes | De todas | De todas |
@@ -171,7 +174,16 @@ Ocultar una opción del menú es solo comodidad: cada endpoint del backend valid
 
 ## 5. Clientes
 
-- El **tipo y número de documento** son obligatorios y son la forma de reconocer a un cliente que regresa.
+- El **tipo y número de documento** son obligatorios y son la forma de reconocer a un cliente que regresa. El número se valida según el tipo, en el front y en el backend (también para el personal):
+
+  | Tipo | Formato |
+  |---|---|
+  | Cédula de ciudadanía | Solo números, de 6 a 10 |
+  | Tarjeta de identidad | Solo números, 10 u 11 |
+  | Cédula de extranjería y PPT | Solo números, de 6 a 12 |
+  | Pasaporte | Letras y números, de 6 a 15 |
+
+  El campo no deja escribir letras en los tipos numéricos ni pasar del máximo, y al cambiar el tipo ajusta el número a lo que ese tipo admite.
 - **Celular** (7 a 10 dígitos, puede repetirse entre familiares) y **correo** (único) son opcionales, pero se llenan o se marca «No tiene». Vacíos se muestran como `NT`.
 - Cuando un cliente regresa, se reutiliza su registro y solo se actualizan el celular y el correo.
 - Si el documento pertenece a un **empleado** que trae su equipo, el ingreso actualiza su celular, pero **no su correo**: con ese correo inicia sesión, y solo el administrador lo cambia en Personal.
@@ -221,22 +233,40 @@ Cancelar: desde cualquier estado excepto DELIVERED.
 | Reparado | Se cobran la mano de obra y los repuestos, y queda la garantía |
 | No reparable / Rechazado por el cliente | Se cobra solo el valor del diagnóstico (puede ser 0), sin repuestos ni garantía; la orden solo puede pasar a `READY` y ya no se reabre |
 
-### 6.4 Fecha estimada de entrega
+### 6.4 Fecha y hora estimada de entrega
 
-- Es obligatoria al abrir la orden y no puede ser anterior a hoy.
-- Se reprograma con un motivo; queda registro de quién, cuándo y las fechas anterior y nueva.
-- Una orden está **atrasada** si pasó la fecha y no está lista, entregada ni cancelada.
+- Al abrir la orden (y la garantía) se piden la **fecha** y la **hora** acordadas con el cliente. Pueden ser el mismo día, pero deben quedar **después del momento del ingreso**; si no, el backend responde 400 «La fecha y hora estimada de entrega debe ser posterior al momento del ingreso». El ingreso es el momento exacto en que se registra la orden.
+- Se reprograma (fecha y hora) con un motivo; queda registro de quién, cuándo, la fecha y hora anterior y la nueva. Solo en órdenes abiertas, lo hace el asesor (o quien tenga sus permisos) o el técnico asignado, y la nueva fecha y hora debe ser posterior al momento actual y distinta de la vigente; si no, el backend responde «La nueva fecha y hora de entrega debe ser posterior a este momento» o «La nueva fecha y hora es igual a la entrega estimada actual».
+- La hora se agregó el 5 de noviembre de 2026: el script `fixtrackback/db/migration/2026-11-05_add_estimated_delivery_time.sql` crea las columnas `estimated_delivery_time` (orden) y `previous_time` / `new_time` (reprogramaciones), con su reversión comentada. Con `DDL_AUTO=update` Hibernate las crea solo.
+- Una orden está **atrasada** desde el **minuto** en que se cumple su fecha y hora sin estar lista, entregada ni cancelada.
+- Las órdenes creadas antes de que existiera la hora conservan su fecha y tienen la hora vacía; para ellas sigue la regla anterior: atrasadas desde el día siguiente a la fecha.
+- La columna **Tiempo restante** del listado de órdenes (y el detalle) se calcula en el navegador cada minuto; no se guarda:
+
+| Situación | Texto | Color |
+|---|---|---|
+| Falta más de un día | «2 d 5 h» | Verde |
+| Faltan 24 horas o menos | «5 h 20 min» | Amarillo |
+| Faltan 2 horas o menos | «1 h 10 min», «35 min» | Rojo |
+| Venció | «Vencido hace 3 h» | Rojo oscuro, y la fila lleva la etiqueta «Atrasada» |
+| Orden antigua sin hora | «Sin hora» o «Vencido (sin hora)» | Gris |
+| Lista, entregada o cancelada | «Listo para entregar», «Entregado», «Cancelada»; el contador se detiene | Gris |
+
+- El listado se puede ordenar por **Tiempo restante: más urgentes primero** (solo abiertas, las vencidas arriba).
 - Una orden **no reclamada** lleva en `READY` más días que los del parámetro `UNCLAIMED_ALERT_DAYS` (30 por defecto). Aparece resaltada en Salida, con el contacto del cliente.
 
 ### 6.5 Contraseña o patrón de desbloqueo
 
+- En el ingreso y en la garantía se elige **Contraseña o PIN** (se escribe) o **Patrón** (se dibuja en una cuadrícula de 3 × 3 con el mouse, el dedo o el teclado). El patrón se guarda como la secuencia de puntos del 1 al 9, por filas, separada por guiones: `1-5-9-6`. Necesita al menos 4 puntos y, si el trazo salta un punto (de 1 a 3), agrega el de en medio, como en el teléfono.
+- En el detalle de la orden el patrón se muestra como texto y, al pulsar «mostrar», dibujado con el número de cada paso.
 - Se guarda cifrada con AES-GCM (llave en `ENCRYPTION_KEY`).
 - Solo la ven el asesor, el coordinador, el administrador y el técnico asignado.
 - Se **borra** al entregar o cancelar la orden.
 
 > Si se pierde o se cambia `ENCRYPTION_KEY`, las contraseñas de desbloqueo ya guardadas no se pueden leer.
 
-### 6.6 Daños adicionales
+### 6.6 Daños reportados y daños adicionales
+
+Al recibir el equipo, el asesor agrega **todos los daños que reporta el cliente** (al menos uno) desde una lista con buscador. Cada uno queda como daño inicial aprobado, y todos salen en el comprobante de ingreso («Daños reportados»).
 
 Si el técnico encuentra un daño nuevo:
 
@@ -245,6 +275,12 @@ Si el técnico encuentra un daño nuevo:
 3. Si el total no supera el presupuesto, queda aprobado solo.
 
 Lo que respondió el asesor no lo vuelve a tocar el sistema.
+
+### 6.7 Comprobantes
+
+- Al terminar el ingreso, el botón **Imprimir comprobante** abre directamente el diálogo de impresión del navegador; «Ver PDF» solo lo muestra.
+- La reimpresión del ingreso (con clave nueva) y el comprobante de entrega también se imprimen directo; el de entrega además se puede descargar.
+- Los comprobantes muestran la fecha y hora estimada de entrega (solo la fecha en las órdenes antiguas).
 
 ---
 
@@ -255,7 +291,9 @@ Lo que respondió el asesor no lo vuelve a tocar el sistema.
 En `/consulta` escribe el **código** de la orden (o de la garantía) y su **clave de 4 dígitos**. Ve:
 
 - El estado, con la línea de tiempo de cambios (sin notas ni nombres del personal).
-- Equipo, fechas, presupuesto y total, sin desglose de costos.
+- Equipo y fechas, con la **fecha y hora** estimada de entrega.
+- **Un solo valor**, sin desglose: «Valor (presupuesto)» mientras el técnico no da el precio y «Valor final» después.
+- La página se actualiza sola cuando el taller cambia el estado o la entrega (sección 15).
 - Las garantías, que se consultan con el código y la clave de la orden original.
 - Un botón «Escuchar», que lee el estado en voz alta.
 - La descarga de los comprobantes.
@@ -308,6 +346,20 @@ Los comprobantes que el cliente descarga desde el portal **enmascaran** sus dato
 - El cliente y el asesor ven el presupuesto y el total, sin desglose. El técnico ve la ganancia de sus órdenes; el coordinador y el administrador, la de todas.
 - Moneda: pesos colombianos (COP), con 2 decimales y redondeo hacia arriba en la mitad (`HALF_UP`).
 
+**El precio de venta del repuesto incluye la instalación.** Lo que se cobra por un repuesto es el repuesto ya puesto; por eso la mano de obra de la orden es **mano de obra adicional** y puede quedar en 0. El técnico, el coordinador y el administrador ven el desglose:
+
+| Renglón | Qué es |
+|---|---|
+| Repuestos (venta con instalación) | Σ cantidad × precio de venta |
+| Mano de obra adicional | Trabajo extra que define el técnico |
+| Ganancia en repuestos e instalación | Venta de repuestos − costo de repuestos |
+| Ganancia por mano de obra adicional | La mano de obra adicional |
+| Ganancia total | Total − costo de repuestos |
+
+Al escribir la mano de obra, el formulario dice cuánto puede subir **sin superar el presupuesto** dado al cliente (o cuánto lo supera), y el botón «Completar hasta el presupuesto» la deja justa.
+
+**Valor que se muestra.** En el detalle de la orden y en el portal hay un solo valor: el **presupuesto** mientras el técnico no ha puesto mano de obra ni repuestos («Se actualiza cuando el técnico dé el precio final»), y el **precio final** después, o cuando la orden está lista, entregada o cancelada. Mientras se muestra el presupuesto, el saldo se calcula contra él («Saldo estimado») y no aparece un «saldo a favor» falso.
+
 ### 9.2 Pagos
 
 | Tipo | Cuándo |
@@ -341,6 +393,9 @@ Los comprobantes que el cliente descarga desde el portal **enmascaran** sus dato
 ## 11. Inventario y repuestos
 
 - Cada **calidad** (original, OEM, genérico) es un repuesto distinto con su propio SKU, stock y precio.
+- El **SKU** es el código único de cada repuesto, con el formato `TIPO-MODELO-CALIDAD` (`PAN-A54-ORI`: pantalla, Galaxy A54, original). El coordinador lo escribe al crear el repuesto; cuando el técnico lo agrega con «Otro», se genera solo con ese formato y, si ya existe, se numera (`-2`, `-3`).
+- El precio de venta se registra con la instalación incluida (sección 9.1).
+- Las listas de repuestos, tipos, marcas, modelos y proveedores tienen **buscador**: se escribe para filtrar, sin importar mayúsculas ni tildes.
 - Estado del stock (se calcula): **Agotado** sin unidades, **Bajo** en el mínimo o por debajo, **OK** por encima.
 - El stock nunca queda negativo y está protegido contra cambios simultáneos.
 - Todo movimiento queda registrado con su saldo:
@@ -354,6 +409,17 @@ Los comprobantes que el cliente descarga desde el portal **enmascaran** sus dato
 
 - Después de que la orden pasa a `READY`, sus repuestos ya no cambian.
 
+### Repuesto que no está en el inventario («Otro»)
+
+Al registrar un repuesto usado, si no existe, el técnico elige **«¿No está? Agregar otro repuesto»**. Se despliega un formulario (tipo, calidad, nombre, costo y precio de venta) con dos opciones:
+
+| Opción | Qué pasa |
+|---|---|
+| **Ya lo tengo** (lo consiguió por otro lado) | El repuesto se crea para el modelo del equipo y entra al inventario con la **cantidad conseguida** (movimiento `IN_PURCHASE` «Conseguido por el técnico para la orden FT-…», a su nombre). En la orden se usa la cantidad indicada y lo que sobre queda en stock |
+| **Pedirlo al coordinador** | El repuesto se crea sin stock y queda una solicitud; la orden pasa a «Esperando repuestos». Al recibirlo, entra al inventario y se carga a la orden |
+
+Si ya existe un repuesto con el mismo tipo, modelo y calidad, no se duplica: el sistema pide elegirlo de la lista.
+
 ### Solicitudes de repuestos
 
 ```
@@ -363,6 +429,8 @@ PENDING ──► APPROVED ──► ORDERED ──► RECEIVED
 ```
 
 Al recibir el repuesto, en una sola operación: entra al inventario, se registra como usado en la orden (si sigue en trabajo) al costo real y se guarda como último costo del proveedor. Si la orden se cancela, sus solicitudes sin pedir se cancelan solas.
+
+Cuando un repuesto baja de su mínimo o se agota, el coordinador y el administrador ven un aviso emergente en cualquier pantalla, y el panel de alertas de Inventario se actualiza solo.
 
 ---
 
@@ -410,6 +478,7 @@ Las llaves se generan con `openssl rand -base64 32`.
 | Variable | Por defecto | Uso |
 |---|---|---|
 | `VITE_API_URL` | `http://localhost:8080/api` | Dirección de la API |
+| `VITE_WS_URL` | La de la API sin `/api` + `/ws` | Canal en tiempo real; solo si vive en otra dirección |
 
 Los `.env` están en `.gitignore` y nunca se suben. Solo se suben los `.env.example`, sin valores.
 
@@ -422,7 +491,7 @@ Los errores llegan como `ProblemDetail` (RFC 9457), con `detail` en español y, 
 | Código | Significado | Ejemplo |
 |---|---|---|
 | 200 / 201 / 204 | Correcto, creado, sin contenido | — |
-| 400 | Datos inválidos | Campo vacío, fecha anterior a hoy, `?sort=` con un campo inexistente, caracteres mal codificados |
+| 400 | Datos inválidos | Campo vacío, fecha y hora de entrega anterior al ingreso, documento con letras en una cédula, `?sort=` con un campo inexistente, caracteres mal codificados |
 | 401 | Sin sesión o sesión no válida | Token vencido, usuario dado de baja, contraseña cambiada |
 | 403 | Sin permiso | Un técnico abre una orden que no es suya |
 | 404 | No existe | Orden o persona inexistente; en el portal, código o clave errados |
@@ -440,12 +509,55 @@ Solo estas rutas funcionan sin token:
 | POST | `/api/public/interventions/lookup` | Consultar una orden en el portal |
 | POST | `/api/public/interventions/receipts/intake` | Comprobante de ingreso (enmascarado) |
 | POST | `/api/public/interventions/receipts/delivery` | Comprobante de entrega (enmascarado) |
+| GET | `/ws/**` | Conexión al canal en tiempo real; la sesión se valida después, al conectar por STOMP (sección 15) |
 
-Todo lo demás bajo `/api` exige sesión y su rol. Cualquier ruta fuera de `/api` se rechaza.
+Todo lo demás bajo `/api` exige sesión y su rol. Cualquier otra ruta se rechaza.
 
 ---
 
-## 15. Seguridad en resumen
+## 15. Tiempo real
+
+Las pantallas se actualizan solas cuando otra persona cambia algo, sin recargar. Usa STOMP sobre WebSocket en `/ws`, con SockJS de respaldo, y se conecta al iniciar sesión y se corta al cerrarla.
+
+| Qué cambia | Qué se actualiza |
+|---|---|
+| Estado, técnico, fecha y hora de entrega de una orden | La fila en Órdenes (solo esa fila), el detalle abierto, Inicio y Salida |
+| Repuestos usados, mano de obra, daños o pagos de una orden | El detalle abierto, sus pestañas, Salida e Inicio |
+| Stock de un repuesto | La fila en Inventario y los repuestos disponibles al registrar uno en una orden |
+| Un repuesto baja del mínimo o se agota | Aviso emergente al coordinador y al administrador, y el panel de alertas |
+| Solicitudes de repuestos | La bandeja del coordinador, «Mis solicitudes» del técnico y la orden |
+| Clientes y personal | Clientes y equipos, Personal y la disponibilidad de los técnicos en Inicio |
+| La orden del cliente | El portal, si el cliente tiene su orden abierta |
+
+| Canal (topic) | Quién puede escucharlo |
+|---|---|
+| `/topic/spare-parts`, `/topic/alerts/stock` | Todo el personal |
+| `/topic/interventions`, `/topic/part-requests` | Asesor, coordinador y administrador |
+| `/user/queue/interventions`, `/user/queue/part-requests` | Cola privada de cada técnico: solo sus órdenes y sus solicitudes (si le quitan una orden, recibe el aviso para sacarla de su lista) |
+| `/topic/persons`, `/topic/devices` | Asesor, coordinador y administrador (llevan datos de clientes) |
+| `/topic/orders/{código}` | Público, pero exige el código de la orden original **y su clave de consulta**, con el mismo conteo de intentos del portal |
+
+Reglas:
+
+- El token de la sesión se valida al conectar, con las mismas reglas de la API (sección 2.4). Si vence, o si la persona es dada de baja o le cambian el rol o la contraseña, el servidor deja de enviar avisos a esa conexión al instante.
+- Los avisos son «delgados»: dicen qué cambió y su id, sin dinero, contraseñas, documentos ni contactos. Cada pantalla vuelve a pedir por la API lo que su rol puede ver.
+- Solo se avisa después de que el cambio se guarda: si una operación falla, nadie recibe el aviso.
+- El navegador no puede enviar mensajes por este canal; solo escucha.
+- Los orígenes permitidos son los de `CORS_ALLOWED_ORIGINS`.
+
+### Cómo comprobarlo
+
+1. Abra dos navegadores (o una ventana normal y una privada) e inicie sesión con dos usuarios distintos, por ejemplo el asesor y el técnico de prueba.
+2. Con el técnico, cambie el estado de una orden: en la ventana del asesor la fila de Órdenes y el Inicio cambian sin recargar.
+3. Reprograme una orden para dentro de 10 minutos: la columna **Tiempo restante** se actualiza en ambas ventanas, baja cada minuto, pasa a rojo y al cumplirse dice «Vencido hace…».
+4. Registre en una orden un repuesto que deje el stock en su mínimo: el coordinador ve el aviso emergente y el panel de alertas de Inventario se actualiza.
+5. Abra la orden en el portal (`/consulta`) con su código y clave y cambie el estado desde el sistema: el portal se actualiza solo.
+
+Las pruebas automáticas del canal están en `fixtrackback/src/test/java/com/fixtrack/config/websocket` (incluida una de integración con un cliente STOMP real) y las del tiempo restante en `fixtrack-front/src/utils/timeRemaining.test.js`.
+
+---
+
+## 16. Seguridad en resumen
 
 | Tema | Cómo se protege |
 |---|---|
@@ -457,13 +569,17 @@ Todo lo demás bajo `/api` exige sesión y su rol. Cualquier ruta fuera de `/api
 | Inyección SQL | Solo consultas con parámetros; búsquedas con comodines escapados |
 | XSS | React escapa todo; no se usa `dangerouslySetInnerHTML` |
 | Datos personales en el portal | Comprobantes enmascarados; la consulta no muestra documento, contactos ni IMEI |
+| Canal en tiempo real | Token validado al conectar, permiso por rol en cada canal, colas privadas para el técnico, avisos sin datos sensibles, corte inmediato al perder el acceso y canal del portal con código y clave |
+| Cabeceras | La API envía `Content-Security-Policy`, `Referrer-Policy`, `Permissions-Policy`, `X-Frame-Options` y `X-Content-Type-Options`; el build del front lleva su propia CSP |
+| Orden de los listados | Solo por los campos permitidos de cada listado; cualquier otro responde 400 |
+| Datos de entrada | Bean Validation en el backend; documento validado por tipo (sección 5) |
 | Secretos | Solo variables de entorno; `.env` fuera del repositorio |
 
-Para producción falta: HTTPS en el proxy, `Content-Security-Policy`, `DDL_AUTO=validate` y revisar los riesgos pendientes de [ANALISIS_RIESGOS.md](ANALISIS_RIESGOS.md).
+Para producción falta: HTTPS en el proxy, `frame-ancestors` en las cabeceras del servidor que sirva el front, `DDL_AUTO=validate` y revisar los riesgos que quedan en [ANALISIS_RIESGOS.md](ANALISIS_RIESGOS.md) (sección 8.3).
 
 ---
 
-## 16. Accesibilidad
+## 17. Accesibilidad
 
 Botón fijo de accesibilidad en el login, el portal y el sistema interno, con:
 
@@ -477,7 +593,7 @@ Los ajustes se guardan en el navegador. Todo se maneja con teclado, las ventanas
 
 ---
 
-## 17. Problemas frecuentes
+## 18. Problemas frecuentes
 
 | Problema | Causa probable | Solución |
 |---|---|---|
@@ -492,13 +608,17 @@ Los ajustes se guardan en el navegador. Todo se maneja con teclado, las ventanas
 | No se puede pasar a «Listo» | Falta el resultado o hay daños pendientes de respuesta | Marcar el resultado o registrar la respuesta del cliente |
 | No se puede asignar un técnico | Está ausente o dado de baja | Cambiar su disponibilidad o elegir otro |
 | No se puede abrir la garantía | La original no está entregada, venció o es otra garantía | Revisar la fecha de garantía de la original |
-| El front no conecta con la API | El backend no corre o el front no está en el puerto 5173 | Arrancar el backend y usar el puerto 5173 |
+| El front no conecta con la API | El backend no corre o el origen del front no está en `CORS_ALLOWED_ORIGINS` | Arrancar el backend; en desarrollo usar el puerto 5173 o agregar el origen a la variable |
+| Las pantallas no se actualizan solas | El canal en tiempo real no está conectado: el backend se reinició, el origen del front no está en `CORS_ALLOWED_ORIGINS` o la consola del navegador (F12) dice «El servidor rechazó la conexión» | Recargar la página (F5); revisar `CORS_ALLOWED_ORIGINS` |
+| No deja guardar la orden: «Debe ser posterior a este momento» | La fecha y hora de entrega ya pasó | Elegir una hora posterior a la actual (puede ser hoy) |
+| No deja escribir letras en el documento | El tipo elegido es numérico | Elegir el tipo correcto (el pasaporte sí admite letras) |
+| El repuesto no aparece al registrarlo en la orden | No existe en el inventario | Usar «¿No está? Agregar otro repuesto» (sección 11) |
 | El backend no arranca: falta `JWT_SECRET` o `ENCRYPTION_KEY` | Falta el `.env` o tiene llaves cortas | Generar las llaves con `openssl rand -base64 32` |
 | No se crea el administrador inicial | Falta `ADMIN_PASSWORD`, ya hay un administrador activo o el correo o el documento ya los usa otra persona | Revisar el log de arranque |
 
 ---
 
-## 18. Comandos
+## 19. Comandos
 
 | Dónde | Comando | Qué hace |
 |---|---|---|
@@ -507,5 +627,18 @@ Los ajustes se guardan en el navegador. Todo se maneja con teclado, las ventanas
 | `fixtrack-front` | `npm run dev` | Servidor de desarrollo en el puerto 5173 |
 | `fixtrack-front` | `npm run build` | Compila para producción en `dist/` |
 | `fixtrack-front` | `npm run lint` | Revisa el código con oxlint |
+| `fixtrack-front` | `npm test` | Pruebas de las utilidades (tiempo restante) con el ejecutor de Node |
 
 > Use `clean test` y no solo `test`: si el editor compiló una clase con errores, Maven puede reutilizarla sin avisar.
+
+Los cambios de esquema que `ddl-auto: update` no hace solo (o para aplicarlos a mano con `DDL_AUTO=validate`) están en `fixtrackback/db/migration/`.
+
+---
+
+## 20. Registro de cambios
+
+| Fecha | Cambio |
+|---|---|
+| 5 de noviembre de 2026 | Cambios sugeridos por el profesor: hora estimada de entrega obligatoria (ingreso, garantía y reprogramación), columna **Tiempo restante** con colores y orden «más urgentes primero», atraso desde el minuto acordado, actualización en tiempo real por WebSocket (sección 15), validación del documento por tipo, varios daños reportados al recibir, patrón de desbloqueo dibujado, repuesto nuevo desde la orden («Otro»), precio de venta con instalación incluida y valor único en el portal. Migración `2026-11-05_add_estimated_delivery_time.sql`. |
+
+Pendiente a la fecha: los catálogos (marcas, modelos, tipos de repuesto, especialidades), los proveedores, los parámetros y los cierres de caja todavía no avisan en tiempo real; quien los tenga abiertos debe recargar para ver cambios de otra persona.

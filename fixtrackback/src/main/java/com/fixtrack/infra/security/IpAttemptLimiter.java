@@ -12,7 +12,8 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 
-// Intentos fallidos por IP (portal y login, con llaves separadas) en una ventana de 15 minutos; al llegar al máximo, la IP espera.
+// Intentos fallidos por llave (IP del portal, IP del login, usuario que cambia su contraseña) en una ventana de 15 minutos;
+// al llegar al máximo, esa llave espera.
 // Vive en memoria: se reinicia con la aplicación y no se comparte entre instancias
 @Component
 @RequiredArgsConstructor

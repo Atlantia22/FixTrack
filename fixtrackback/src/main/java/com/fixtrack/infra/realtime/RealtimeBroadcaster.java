@@ -21,7 +21,11 @@ public class RealtimeBroadcaster {
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
 	public void broadcast(RealtimeMessage message) {
 		try {
-			messagingTemplate.convertAndSend(message.destination(), message.event());
+			if (message.user() != null) {
+				messagingTemplate.convertAndSendToUser(message.user(), message.destination(), message.event());
+			} else {
+				messagingTemplate.convertAndSend(message.destination(), message.event());
+			}
 		} catch (MessagingException ex) {
 			// El cambio ya está guardado; un aviso perdido no debe convertirse en un error para quien lo hizo
 			log.warn("No se pudo enviar el evento {} a {}", message.event().type(), message.destination(), ex);

@@ -1,5 +1,6 @@
 package com.fixtrack.inventory.service.impl;
 
+import java.util.Map;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -7,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fixtrack.common.SortWhitelist;
 import com.fixtrack.common.BusinessRuleException;
 import com.fixtrack.common.ConflictException;
 import com.fixtrack.common.NotFoundException;
@@ -28,12 +30,19 @@ public class SupplierServiceImpl implements SupplierService {
 	private static final Pattern TAX_ID = Pattern.compile("^\\d{5,15}(-\\d)?$");
 	private static final Pattern LIKE_SPECIAL = Pattern.compile("[!%_]");
 
+	// Campos por los que el front puede ordenar el listado; cualquier otro responde 400
+	private static final Map<String, String> SORTABLE = Map.of(
+			"name", "name",
+			"taxId", "taxId",
+			"id", "id");
+
 	private final SupplierRepository supplierRepository;
 	private final SupplierMapper supplierMapper;
 
 	@Override
 	@Transactional(readOnly = true)
 	public PageResponse<SupplierResponse> search(String search, boolean active, Pageable pageable) {
+		pageable = SortWhitelist.restrict(pageable, SORTABLE);
 		String pattern = search == null || search.isBlank() ? null
 				: "%" + LIKE_SPECIAL.matcher(search.trim()).replaceAll("!$0") + "%";
 		return PageResponse.from(supplierRepository.search(pattern, active, pageable).map(supplierMapper::toResponse));

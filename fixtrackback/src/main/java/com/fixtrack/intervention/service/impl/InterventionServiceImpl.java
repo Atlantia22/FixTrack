@@ -22,6 +22,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fixtrack.common.SortWhitelist;
 import com.fixtrack.cash.service.PaymentService;
 import com.fixtrack.common.BusinessRuleException;
 import com.fixtrack.common.ConflictException;
@@ -98,6 +99,16 @@ public class InterventionServiceImpl implements InterventionService {
 	// Caracteres especiales de LIKE (incluido el de escape) que se buscan como texto literal
 	private static final Pattern LIKE_SPECIAL = Pattern.compile("[!%_]");
 
+	// Campos por los que el front puede ordenar el listado; cualquier otro responde 400
+	private static final Map<String, String> SORTABLE = Map.of(
+			"receivedAt", "receivedAt",
+			"estimatedDeliveryDate", "estimatedDeliveryDate",
+			"estimatedDeliveryTime", "estimatedDeliveryTime",
+			"status", "status",
+			"readyAt", "readyAt",
+			"deliveredAt", "deliveredAt",
+			"id", "id");
+
 	private final InterventionRepository interventionRepository;
 	private final InterventionFindingRepository findingRepository;
 	private final InterventionStatusHistoryRepository historyRepository;
@@ -167,6 +178,7 @@ public class InterventionServiceImpl implements InterventionService {
 	@Override
 	@Transactional(readOnly = true)
 	public PageResponse<InterventionSummaryResponse> search(InterventionFilter filter, Pageable pageable) {
+		pageable = SortWhitelist.restrict(pageable, SORTABLE);
 		// El código se busca mientras se escribe (FT-1, 00001); el documento por coincidencia parcial
 		InterventionCode.Parsed code = null;
 		if (filter.code() != null && !filter.code().isBlank()) {
@@ -289,6 +301,7 @@ public class InterventionServiceImpl implements InterventionService {
 	@Transactional(readOnly = true)
 	public PageResponse<InterventionSummaryResponse> findAssignedTo(AuthenticatedUser actor, InterventionFilter filter,
 			Pageable pageable) {
+		pageable = SortWhitelist.restrict(pageable, SORTABLE);
 		if (actor.role() != Role.TECHNICIAN) {
 			throw new ForbiddenException("Solo los técnicos tienen órdenes asignadas");
 		}
@@ -347,8 +360,9 @@ public class InterventionServiceImpl implements InterventionService {
 	public InterventionDetailResponse assignTechnician(Long id, Long technicianId, AuthenticatedUser actor) {
 		requireFrontDesk(actor, "Solo el asesor puede asignar el técnico");
 		Intervention intervention = findOpenIntervention(id);
+		Person previousTechnician = intervention.getTechnician();
 		intervention.setTechnician(assignableTechnician(technicianId));
-		interventionEvents.updated(intervention);
+		interventionEvents.technicianChanged(intervention, previousTechnician);
 		return toDetail(intervention, actor);
 	}
 

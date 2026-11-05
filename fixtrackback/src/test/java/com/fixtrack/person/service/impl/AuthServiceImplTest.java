@@ -5,11 +5,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,11 +19,17 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.fixtrack.common.BusinessRuleException;
 import com.fixtrack.common.TooManyRequestsException;
 import com.fixtrack.common.UnauthorizedException;
+import com.fixtrack.infra.security.AuthenticatedUser;
 import com.fixtrack.infra.security.IpAttemptLimiter;
 import com.fixtrack.infra.security.JwtService;
+import com.fixtrack.person.dto.ChangePasswordRequest;
 import com.fixtrack.person.dto.LoginRequest;
+import com.fixtrack.person.entity.Person;
+import com.fixtrack.person.entity.Role;
+import com.fixtrack.person.events.PersonEventPublisher;
 import com.fixtrack.person.mapper.PersonMapper;
 import com.fixtrack.person.repository.PersonRepository;
 
@@ -36,7 +44,7 @@ class AuthServiceImplTest {
 	void setUp() {
 		authenticationManager = mock(AuthenticationManager.class);
 		authService = new AuthServiceImpl(authenticationManager, mock(JwtService.class), mock(PersonRepository.class),
-				mock(PasswordEncoder.class), new PersonMapper(), new IpAttemptLimiter(CLOCK), CLOCK);
+				mock(PasswordEncoder.class), new PersonMapper(), new IpAttemptLimiter(CLOCK), CLOCK, mock(PersonEventPublisher.class));
 	}
 
 	@Test
@@ -60,10 +68,31 @@ class AuthServiceImplTest {
 			limiter.recordFailure("login:10.0.0.7");
 		}
 		AuthServiceImpl blocked = new AuthServiceImpl(authenticationManager, mock(JwtService.class),
-				mock(PersonRepository.class), mock(PasswordEncoder.class), new PersonMapper(), limiter, CLOCK);
+				mock(PersonRepository.class), mock(PasswordEncoder.class), new PersonMapper(), limiter, CLOCK,
+				mock(PersonEventPublisher.class));
 
 		assertThatThrownBy(() -> blocked.login(new LoginRequest("admin@fixtrack.local", "x"), "10.0.0.7"))
 				.isInstanceOf(TooManyRequestsException.class);
 		verify(authenticationManager, never()).authenticate(any());
+	}
+
+	@Test
+	void shouldBlockPasswordChangeAfterTenWrongCurrentPasswords() {
+		PersonRepository people = mock(PersonRepository.class);
+		PasswordEncoder encoder = mock(PasswordEncoder.class);
+		AuthServiceImpl service = new AuthServiceImpl(authenticationManager, mock(JwtService.class), people, encoder,
+				new PersonMapper(), new IpAttemptLimiter(CLOCK), CLOCK, mock(PersonEventPublisher.class));
+		AuthenticatedUser actor = new AuthenticatedUser(4L, "Asesor", "asesor@fixtrack.test", Role.ADVISOR, "hash", true);
+		given(people.findById(4L)).willReturn(Optional.of(Person.builder().id(4L).password("hash").build()));
+		given(encoder.matches(any(), any())).willReturn(false);
+		ChangePasswordRequest wrong = new ChangePasswordRequest("adivinando", "NuevaClave123");
+
+		for (int attempt = 0; attempt < 10; attempt++) {
+			assertThatThrownBy(() -> service.changePassword(actor, wrong)).isInstanceOf(BusinessRuleException.class);
+		}
+
+		// El intento 11 ni siquiera compara la contraseña
+		assertThatThrownBy(() -> service.changePassword(actor, wrong)).isInstanceOf(TooManyRequestsException.class);
+		verify(people, times(10)).findById(4L);
 	}
 }

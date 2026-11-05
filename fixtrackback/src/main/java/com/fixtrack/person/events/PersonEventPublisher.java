@@ -3,6 +3,7 @@ package com.fixtrack.person.events;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import com.fixtrack.infra.realtime.RealtimeEventType;
@@ -18,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 public class PersonEventPublisher {
 
 	private final RealtimePublisher publisher;
+	private final ApplicationEventPublisher applicationEventPublisher;
 
 	public void personChanged(RealtimeEventType type, Person person) {
 		Map<String, Object> payload = new LinkedHashMap<>();
@@ -25,5 +27,10 @@ public class PersonEventPublisher {
 		payload.put("active", person.isActive());
 		payload.put("availability", person.getAvailability());
 		publisher.publish(RealtimeTopics.PERSONS, type, "person", person.getId(), payload);
+	}
+
+	// Baja, cambio de rol o de contraseña: la sesión en tiempo real abierta de esa persona deja de servir al confirmar
+	public void accessRevoked(Person person) {
+		applicationEventPublisher.publishEvent(new PersonAccessRevokedEvent(person.getId()));
 	}
 }

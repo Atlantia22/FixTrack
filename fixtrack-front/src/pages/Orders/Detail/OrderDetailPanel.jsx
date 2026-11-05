@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import SidePanel from '../../../components/SidePanel/SidePanel'
 import StatusBadge from '../../../components/StatusBadge/StatusBadge'
-import { TOPICS, useRealtime } from '../../../hooks/useRealtime'
+import { useInterventionsTopic, useRealtime } from '../../../hooks/useRealtime'
 import { useRemoteData } from '../../../hooks/useRemoteData'
 import * as interventionService from '../../../services/interventionService'
 import OrderDiagnosisTab from './OrderDiagnosisTab'
@@ -29,7 +29,7 @@ export default function OrderDetailPanel({ orderId, technicians, onClose, onChan
   const order = detail.data
 
   // Si otra persona cambia esta orden (estado, técnico, repuestos, pagos), el detalle se actualiza sin cerrarse
-  useRealtime(TOPICS.INTERVENTIONS, ({ id }) => {
+  useRealtime(useInterventionsTopic(), ({ id }) => {
     if (id === orderId) detail.reload({ silent: true })
   })
 

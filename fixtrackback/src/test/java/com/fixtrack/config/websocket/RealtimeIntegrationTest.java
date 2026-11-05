@@ -33,6 +33,8 @@ import org.springframework.web.socket.messaging.WebSocketStompClient;
 import com.fixtrack.infra.realtime.RealtimeTopics;
 import com.fixtrack.infra.security.AuthenticatedUser;
 import com.fixtrack.infra.security.JwtService;
+import com.fixtrack.intervention.entity.Intervention;
+import com.fixtrack.intervention.repository.InterventionRepository;
 import com.fixtrack.person.entity.Person;
 import com.fixtrack.person.entity.Role;
 import com.fixtrack.person.repository.PersonRepository;
@@ -54,13 +56,19 @@ class RealtimeIntegrationTest {
 	@Autowired
 	private JwtService jwtService;
 
+	@Autowired
+	private InterventionRepository interventionRepository;
+
 	private final WebSocketStompClient stompClient = new WebSocketStompClient(new StandardWebSocketClient());
 	private StompSession session;
+	private StompSession otherSession;
 
 	@AfterEach
 	void disconnect() {
-		if (session != null && session.isConnected()) {
-			session.disconnect();
+		for (StompSession open : new StompSession[] { session, otherSession }) {
+			if (open != null && open.isConnected()) {
+				open.disconnect();
+			}
 		}
 		stompClient.stop();
 	}
@@ -99,6 +107,56 @@ class RealtimeIntegrationTest {
 		@SuppressWarnings("unchecked")
 		Map<String, Object> payload = (Map<String, Object>) event.get("payload");
 		assertThat(payload).doesNotContainKeys("phone", "email", "documentNumber");
+	}
+
+	// 4.10: el técnico recibe por su cola privada solo sus órdenes; otro técnico no recibe nada de esa orden
+	@Test
+	void shouldDeliverOrderEventsOnlyToTheAssignedTechnician() throws Exception {
+		Person admin = activeWithRole(Role.ADMIN);
+		// Fuera de una transacción el técnico de la orden es un proxy perezoso: se carga aparte por su id
+		Intervention order = null;
+		Person owner = null;
+		for (Intervention candidate : interventionRepository.findAll()) {
+			if (candidate.getTechnician() == null || candidate.getStatus().isClosed()) {
+				continue;
+			}
+			Person technician = personRepository.findById(candidate.getTechnician().getId()).orElse(null);
+			if (technician != null && technician.isActive() && technician.getEmail() != null) {
+				order = candidate;
+				owner = technician;
+				break;
+			}
+		}
+		Long ownerId = owner == null ? null : owner.getId();
+		Person other = personRepository.findAll().stream()
+				.filter(person -> person.getRole() == Role.TECHNICIAN && person.isActive() && person.getEmail() != null
+						&& !person.getId().equals(ownerId))
+				.findFirst()
+				.orElse(null);
+		assumeTrue(admin != null && order != null && other != null,
+				"La base no tiene una orden abierta con técnico y otro técnico activo");
+
+		BlockingQueue<Map<String, Object>> ownerReceived = new LinkedBlockingQueue<>();
+		BlockingQueue<Map<String, Object>> otherReceived = new LinkedBlockingQueue<>();
+		session = connect(token(owner));
+		session.subscribe("/user/queue/interventions", collector(ownerReceived));
+		otherSession = connect(token(other));
+		otherSession.subscribe("/user/queue/interventions", collector(otherReceived));
+		Thread.sleep(300);
+
+		// Reasignar el mismo técnico no cambia datos y publica el aviso de la orden
+		HttpResponse<String> response = HttpClient.newHttpClient().send(HttpRequest.newBuilder()
+				.uri(URI.create("http://localhost:" + port + "/api/interventions/" + order.getId() + "/technician"))
+				.header("Authorization", "Bearer " + token(admin))
+				.header("Content-Type", "application/json")
+				.method("PATCH", HttpRequest.BodyPublishers.ofString("{\"technicianId\":" + owner.getId() + "}"))
+				.build(), HttpResponse.BodyHandlers.ofString());
+		assertThat(response.statusCode()).isEqualTo(200);
+
+		Map<String, Object> event = ownerReceived.poll(5, TimeUnit.SECONDS);
+		assertThat(event).isNotNull();
+		assertThat(((Number) event.get("id")).longValue()).isEqualTo(order.getId());
+		assertThat(otherReceived.poll(2, TimeUnit.SECONDS)).isNull();
 	}
 
 	@Test

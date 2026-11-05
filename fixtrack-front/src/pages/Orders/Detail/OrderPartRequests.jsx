@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import PartRequestForm from '../../../components/PartRequestForm/PartRequestForm'
 import PartRequestStatusTag from '../../../components/PartRequestStatusTag/PartRequestStatusTag'
-import { TOPICS, useRealtime } from '../../../hooks/useRealtime'
+import { usePartRequestsTopic, useRealtime } from '../../../hooks/useRealtime'
 import { useRemoteData } from '../../../hooks/useRemoteData'
 import * as partRequestService from '../../../services/partRequestService'
 import { formatDateTime } from '../../../utils/format'
@@ -11,7 +11,7 @@ import './OrderPartRequests.css'
 export default function OrderPartRequests({ order, canRequest, onRequested }) {
   const formId = useId()
   const requests = useRemoteData(() => partRequestService.listByIntervention(order.id), [order.id])
-  useRealtime(TOPICS.PART_REQUESTS, ({ payload }) => {
+  useRealtime(usePartRequestsTopic(), ({ payload }) => {
     if (payload.interventionId === order.id) requests.reload({ silent: true })
   })
 

@@ -10,9 +10,11 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import com.fixtrack.infra.realtime.RealtimeTopics;
+
 import lombok.RequiredArgsConstructor;
 
-// STOMP sobre WebSocket con SockJS de respaldo: el front se conecta a /ws y escucha los topics de /topic
+// STOMP sobre WebSocket con SockJS de respaldo: el front se conecta a /ws y escucha los topics de /topic o su cola /user/queue
 @Configuration
 @EnableWebSocketMessageBroker
 @RequiredArgsConstructor
@@ -34,11 +36,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 		registry.setErrorHandler(new StompErrorHandler());
 	}
 
-	// Broker en memoria para /topic; /app queda reservado aunque hoy el front solo escucha
+	// Broker en memoria para /topic (compartidos) y /queue (colas privadas por usuario, vía /user/queue/...);
+	// /app queda reservado aunque hoy el front solo escucha
 	@Override
 	public void configureMessageBroker(MessageBrokerRegistry registry) {
-		registry.enableSimpleBroker("/topic");
+		registry.enableSimpleBroker("/topic", "/queue");
 		registry.setApplicationDestinationPrefixes("/app");
+		registry.setUserDestinationPrefix(RealtimeTopics.USER_PREFIX);
 	}
 
 	// Entrada: valida el token en el CONNECT y el permiso de cada SUBSCRIBE

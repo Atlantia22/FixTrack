@@ -23,6 +23,7 @@ import com.fixtrack.person.dto.ChangePasswordRequest;
 import com.fixtrack.person.dto.LoginRequest;
 import com.fixtrack.person.dto.LoginResponse;
 import com.fixtrack.person.entity.Person;
+import com.fixtrack.person.events.PersonEventPublisher;
 import com.fixtrack.person.mapper.PersonMapper;
 import com.fixtrack.person.repository.PersonRepository;
 import com.fixtrack.person.service.AuthService;
@@ -36,6 +37,9 @@ public class AuthServiceImpl implements AuthService {
 
 	private static final String INVALID_CREDENTIALS = "Correo o contraseña incorrectos.";
 	private static final String TOO_MANY = "Demasiados intentos fallidos desde su conexión. Espere unos minutos e intente de nuevo.";
+	private static final String TOO_MANY_PASSWORD = "Demasiados intentos con la contraseña actual. Espere unos minutos e intente de nuevo.";
+	// Llave propia por usuario: los fallos al cambiar la contraseña no se mezclan con los del login ni del portal
+	private static final String PASSWORD_LIMITER_PREFIX = "password:";
 	// Los intentos del login se cuentan aparte de los del portal
 	private static final String LIMITER_PREFIX = "login:";
 
@@ -46,6 +50,7 @@ public class AuthServiceImpl implements AuthService {
 	private final PersonMapper personMapper;
 	private final IpAttemptLimiter ipAttemptLimiter;
 	private final Clock clock;
+	private final PersonEventPublisher personEvents;
 
 	// No distingue correo inexistente, cliente, usuario inactivo o contraseña errada
 	@Override
@@ -81,9 +86,15 @@ public class AuthServiceImpl implements AuthService {
 	@Override
 	@Transactional
 	public LoginResponse changePassword(AuthenticatedUser actor, ChangePasswordRequest request) {
+		// Con un token robado no se puede adivinar la contraseña actual: 10 fallos en 15 minutos bloquean el cambio
+		String limiterKey = PASSWORD_LIMITER_PREFIX + actor.id();
+		if (ipAttemptLimiter.isBlocked(limiterKey)) {
+			throw new TooManyRequestsException(TOO_MANY_PASSWORD);
+		}
 		Person person = personRepository.findById(actor.id())
 				.orElseThrow(() -> new NotFoundException("No existe la persona con id " + actor.id()));
 		if (person.getPassword() == null || !passwordEncoder.matches(request.currentPassword(), person.getPassword())) {
+			ipAttemptLimiter.recordFailure(limiterKey);
 			throw new BusinessRuleException("La contraseña actual no es correcta");
 		}
 		if (request.newPassword().equals(request.currentPassword())) {
@@ -91,6 +102,8 @@ public class AuthServiceImpl implements AuthService {
 		}
 		person.setPassword(passwordEncoder.encode(request.newPassword()));
 		person.setPasswordChangedAt(clock.instant().truncatedTo(ChronoUnit.SECONDS));
+		// Las sesiones de otros equipos se cierran (token anterior) y también su canal en tiempo real
+		personEvents.accessRevoked(person);
 		AuthenticatedUser user = new AuthenticatedUser(person.getId(), person.getFullName(), person.getEmail(),
 				person.getRole(), person.getPassword(), person.isActive(), person.getPasswordChangedAt());
 		IssuedToken token = jwtService.issue(user);

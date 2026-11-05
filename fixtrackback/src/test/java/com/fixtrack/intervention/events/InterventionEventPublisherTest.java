@@ -1,6 +1,7 @@
 package com.fixtrack.intervention.events;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -56,6 +57,31 @@ class InterventionEventPublisherTest {
 		verify(publisher).publish(eq("/topic/orders/FT-00018"), eq(RealtimeEventType.STATUS_CHANGED), eq("order"),
 				isNull(), portal.capture());
 		assertThat(portal.getValue()).containsOnlyKeys("code", "status");
+	}
+
+	@Test
+	void shouldSendTheOrderOnlyToItsTechnicianPrivateQueue() {
+		Intervention order = Intervention.builder().id(18L).status(InterventionStatus.IN_REPAIR)
+				.technician(Person.builder().id(5L).email("tito@fixtrack.test").build()).build();
+
+		events.updated(order);
+
+		verify(publisher).publishToUser(eq("tito@fixtrack.test"), eq(RealtimeTopics.MY_INTERVENTIONS),
+				eq(RealtimeEventType.UPDATED), eq("intervention"), eq(18L), anyMap());
+	}
+
+	@Test
+	void shouldTellThePreviousTechnicianWhenTheOrderIsReassigned() {
+		Person previous = Person.builder().id(5L).email("tito@fixtrack.test").build();
+		Intervention order = Intervention.builder().id(18L).status(InterventionStatus.IN_REPAIR)
+				.technician(Person.builder().id(6L).email("lia@fixtrack.test").build()).build();
+
+		events.technicianChanged(order, previous);
+
+		verify(publisher).publishToUser(eq("lia@fixtrack.test"), eq(RealtimeTopics.MY_INTERVENTIONS), any(),
+				eq("intervention"), eq(18L), anyMap());
+		verify(publisher).publishToUser(eq("tito@fixtrack.test"), eq(RealtimeTopics.MY_INTERVENTIONS), any(),
+				eq("intervention"), eq(18L), anyMap());
 	}
 
 	@Test

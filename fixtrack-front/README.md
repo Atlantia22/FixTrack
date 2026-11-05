@@ -1,16 +1,34 @@
-# React + Vite
+# FixTrack — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Aplicación web de FixTrack con React 19 y Vite 8. Consume la API del backend (`fixtrackback`) y su canal en tiempo real.
 
-Currently, two official plugins are available:
+## Arrancar
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+cp .env.example .env   # VITE_API_URL=http://localhost:8080/api
+npm install
+npm run dev            # http://localhost:5173
+```
 
-## React Compiler
+El puerto 5173 es fijo (`strictPort`): el backend solo acepta peticiones (CORS) desde ese origen.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Variables de entorno
 
-## Expanding the Oxlint configuration
+| Variable | Por defecto | Uso |
+|---|---|---|
+| `VITE_API_URL` | `http://localhost:8080/api` | Dirección de la API |
+| `VITE_WS_URL` | La de la API sin `/api` + `/ws` | Canal en tiempo real (STOMP sobre SockJS); solo si vive en otra dirección |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Comandos
+
+| Comando | Qué hace |
+|---|---|
+| `npm run dev` | Servidor de desarrollo |
+| `npm run build` | Compila para producción en `dist/` |
+| `npm run lint` | Revisa el código con oxlint |
+| `npm test` | Pruebas de las utilidades con el ejecutor de Node (`src/**/*.test.js`) |
+
+## Más información
+
+- Estructura, convenciones y reglas de diseño: [`.claude/rules/react.md`](../.claude/rules/react.md).
+- Guía del sistema: [`DOCUMENTACION.md`](../DOCUMENTACION.md).

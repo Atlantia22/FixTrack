@@ -15,7 +15,8 @@ FixTrack/
         ├── main.jsx            # importa los estilos globales en orden
         ├── App.jsx             # AccessibilityProvider > BrowserRouter > ToastProvider > AuthProvider > AppRoutes
         ├── config/
-        │   └── apiConfig.js    # API_CONFIG: cliente Axios, token y cierre de sesión ante 401
+        │   ├── apiConfig.js    # API_CONFIG: cliente Axios, token y cierre de sesión ante 401
+        │   └── realtimeClient.js # única conexión STOMP (SockJS): connect, subscribe, reconexión y re-suscripción
         ├── services/           # authService, portalService, personService (personas, especialidades,
         │                       # disponibilidad, búsqueda por documento), catalogService (marcas, modelos, tipos),
         │                       # sparePartService, deviceService (equipos del cliente), interventionService (órdenes,
@@ -30,7 +31,8 @@ FixTrack/
         │   ├── AccessibilityContext.js # createContext de los ajustes de accesibilidad y FONT_SCALES
         │   └── AccessibilityProvider.jsx # ajustes en localStorage, aplicados como data-* de <html>
         ├── hooks/              # useAuth, useToast, useAccessibility, useDialog (Esc y foco), useGuardedClose (cambios sin guardar),
-        │                       # useRemoteData (carga con estado y reload), useDebouncedValue (búsquedas)
+        │                       # useRemoteData (carga con estado, reload({ silent }) y mutate), useDebouncedValue (búsquedas),
+        │                       # useRealtime (escucha un topic; TOPICS), useNow (reloj de 60 s por vista), useStockAlertToasts
         ├── routes/
         │   ├── AppRoutes.jsx
         │   ├── ProtectedRoute.jsx
@@ -83,7 +85,10 @@ FixTrack/
         │   ├── DiscardPrompt/  # aviso de cambios sin guardar dentro de Modal y SidePanel
         │   ├── PersonFormModal/ # alta y edición de personas: Personal (roles internos) y Clientes (fixedRole)
         │   ├── ContactField/   # celular o correo con su casilla «No tiene» (ingreso, garantía y clientes)
-        │   ├── SearchSelect/   # lista desplegable en la que se escribe para filtrar (combobox), para catálogos largos
+        │   ├── SearchSelect/   # lista desplegable en la que se escribe para filtrar (combobox): repuestos, tipos, marcas, modelos, proveedores
+        │   ├── PatternLock/    # cuadrícula 3×3 para dibujar el patrón de desbloqueo (mouse, dedo o teclado)
+        │   ├── UnlockCodeField/ # contraseña o PIN, o patrón dibujado que se guarda como «1-5-9-6»
+        │   ├── TimeRemainingTag/ # etiqueta de tiempo restante hasta la entrega, con color por urgencia
         │   ├── FormField/      # label + control + ayuda + error, con aria enlazado (render prop)
         │   ├── PasswordInput/  # campo oculto con botón mostrar/ocultar
         │   ├── Tabs/           # pestañas de página
@@ -92,8 +97,10 @@ FixTrack/
         │   ├── PartRequestStatusTag/
         │   ├── NameCatalog/    # catálogo de solo nombre: tabla, modal y borrado (marcas, tipos, especialidades)
         │   └── Toast/
-        ├── utils/              # format.js (dinero, fechas, hoy en Bogotá, código de orden, NT), labels.js, statusIcons.js, errors.js, files.js (PDF),
-        │                       # permissions.js (mismas reglas de rol del backend para mostrar u ocultar acciones)
+        ├── utils/              # format.js (dinero, fechas, fecha y hora de entrega, hoy en Bogotá, código de orden, NT), labels.js, statusIcons.js,
+        │                       # errors.js, files.js (openPdf, printPdf, downloadFile), permissions.js (mismas reglas de rol del backend),
+        │                       # timeRemaining.js (+ .test.js: tiempo restante y atraso), orderPrice.js (presupuesto o precio final),
+        │                       # document.js (formato del documento por tipo), unlockPattern.js
         └── styles/
             ├── variables.css   # colores, tipografía, espacios, radios, sombras y estados; temas por data-* de <html>
             ├── base.css        # reset y estilos de etiquetas HTML
@@ -110,6 +117,7 @@ FixTrack/
 - Las tarjetas del Inicio llevan al listado con filtros en la URL (`/ordenes?overdue=true`, `/inventario?alertas=1`). Las páginas toman esos filtros al montarse y en cada navegación (`location.key`), no al cambiar el texto de la URL; así escribir en los filtros nunca se pisa con una navegación en curso.
 - Los gráficos usan Recharts con los colores de `variables.css` (`fill="var(--color-primary)"`) y van dentro de `ChartCard`, que agrega un resumen en texto para lectores de pantalla.
 - Tiempo real: `config/realtimeClient.js` es la única conexión STOMP (SockJS, reconexión automática y re-suscripción); `AuthProvider` la abre con el token y la cierra al salir. Las vistas usan `useRealtime(TOPICS.X, onEvent, { enabled })` y actualizan solo lo afectado con `mutate` o `reload({ silent: true })` de `useRemoteData`. Solo se suscriben a topics que su rol puede ver: el servidor corta la conexión ante una suscripción prohibida.
+- Las pruebas de utilidades usan el ejecutor de Node (`npm test`, archivos `*.test.js` junto a la utilidad), sin dependencias extra.
 - Los PDF se abren con `openPdf` (la pestaña se abre en el mismo clic para que el navegador no la bloquee) o se descargan con `downloadFile`.
 - Las acciones de la orden se muestran según `utils/permissions.js` y `nextStatuses` del detalle; el backend valida igual. El asesor ve el total de repuestos sin precios unitarios (sin desglose).
 - Los formularios en modal se montan con `key` al abrirse (`{editing && <XFormModal key={...} />}`) para arrancar con su estado inicial, comparan el formulario con ese estado para `isDirty` y borran el error de un campo al editarlo.

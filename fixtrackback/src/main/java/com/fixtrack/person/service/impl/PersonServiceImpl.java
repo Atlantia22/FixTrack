@@ -18,6 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fixtrack.common.SortWhitelist;
 import com.fixtrack.common.BusinessRuleException;
 import com.fixtrack.common.ConflictException;
 import com.fixtrack.common.ForbiddenException;
@@ -55,6 +56,13 @@ public class PersonServiceImpl implements PersonService {
 	// Comodines de LIKE que se escapan con ! antes de buscar
 	private static final Pattern LIKE_SPECIAL = Pattern.compile("[!%_]");
 
+	// Campos por los que el front puede ordenar el listado; cualquier otro responde 400
+	private static final Map<String, String> SORTABLE = Map.of(
+			"fullName", "fullName",
+			"documentNumber", "documentNumber",
+			"role", "role",
+			"id", "id");
+
 	private final PersonRepository personRepository;
 	private final PersonSpecialtyRepository personSpecialtyRepository;
 	private final SpecialtyRepository specialtyRepository;
@@ -67,6 +75,7 @@ public class PersonServiceImpl implements PersonService {
 	@Override
 	@Transactional(readOnly = true)
 	public PageResponse<PersonResponse> search(String search, Role role, boolean staff, boolean active, Pageable pageable) {
+		pageable = SortWhitelist.restrict(pageable, SORTABLE);
 		String pattern = search == null || search.isBlank() ? null
 				: "%" + LIKE_SPECIAL.matcher(search.trim()).replaceAll("!$0") + "%";
 		Page<Person> page = personRepository.search(pattern, role, staff, active, pageable);
@@ -114,9 +123,15 @@ public class PersonServiceImpl implements PersonService {
 		if (request.role() != Role.ADMIN && isLastActiveAdmin(person)) {
 			throw new ConflictException("No se puede quitar el rol de administrador al único administrador activo");
 		}
+		Role previousRole = person.getRole();
 		applyRequest(person, request);
 		syncSpecialties(person, request.specialtyIds());
 		personEvents.personChanged(RealtimeEventType.UPDATED, person);
+		// Otro rol u otra contraseña: la sesión abierta ya no corresponde, también en el canal en tiempo real
+		boolean passwordChanged = request.password() != null && !request.password().isBlank();
+		if (previousRole != person.getRole() || passwordChanged) {
+			personEvents.accessRevoked(person);
+		}
 		return toResponse(person);
 	}
 
@@ -130,6 +145,7 @@ public class PersonServiceImpl implements PersonService {
 		}
 		person.setActive(false);
 		personEvents.personChanged(RealtimeEventType.DEACTIVATED, person);
+		personEvents.accessRevoked(person);
 	}
 
 	// El técnico cambia su propia disponibilidad; el administrador, la de cualquier técnico

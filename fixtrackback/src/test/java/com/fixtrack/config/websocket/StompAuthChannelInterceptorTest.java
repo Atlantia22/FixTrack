@@ -83,6 +83,30 @@ class StompAuthChannelInterceptorTest {
 	}
 
 	@Test
+	void shouldSendTechniciansToTheirPrivateQueueInsteadOfTheSharedOrdersTopic() {
+		AuthenticatedUser technician = user(5L, Role.TECHNICIAN);
+
+		assertThatThrownBy(() -> interceptor.preSend(subscribe(RealtimeTopics.INTERVENTIONS, technician), channel))
+				.isInstanceOf(AccessDeniedException.class);
+		assertThatThrownBy(() -> interceptor.preSend(subscribe(RealtimeTopics.PART_REQUESTS, technician), channel))
+				.isInstanceOf(AccessDeniedException.class);
+		assertThat(interceptor.preSend(subscribe("/user/queue/interventions", technician), channel)).isNotNull();
+		assertThat(interceptor.preSend(subscribe("/user/queue/part-requests", technician), channel)).isNotNull();
+		assertThat(interceptor.preSend(subscribe(RealtimeTopics.INTERVENTIONS, user(3L, Role.ADVISOR)), channel)).isNotNull();
+	}
+
+	@Test
+	void shouldRejectSubscriptionsOnceTheUserLosesAccess() {
+		expirations.register("s1", 5L, NOW.plus(Duration.ofHours(8)));
+		assertThat(interceptor.preSend(subscribe(RealtimeTopics.SPARE_PARTS, user(5L, Role.TECHNICIAN)), channel)).isNotNull();
+
+		expirations.expireUser(5L, NOW);
+
+		assertThatThrownBy(() -> interceptor.preSend(subscribe(RealtimeTopics.SPARE_PARTS, user(5L, Role.TECHNICIAN)),
+				channel)).isInstanceOf(AccessDeniedException.class);
+	}
+
+	@Test
 	void shouldRejectAnonymousSubscriptionsToStaffTopics() {
 		assertThatThrownBy(() -> interceptor.preSend(subscribe(RealtimeTopics.SPARE_PARTS, null), channel))
 				.isInstanceOf(AccessDeniedException.class);
@@ -90,7 +114,7 @@ class StompAuthChannelInterceptorTest {
 
 	@Test
 	void shouldRejectSubscriptionsAfterTheTokenExpires() {
-		expirations.register("s1", NOW.minusSeconds(1));
+		expirations.register("s1", 5L, NOW.minusSeconds(1));
 
 		assertThatThrownBy(() -> interceptor.preSend(subscribe(RealtimeTopics.SPARE_PARTS, user(5L, Role.TECHNICIAN)),
 				channel)).isInstanceOf(AccessDeniedException.class);

@@ -2,6 +2,7 @@ package com.fixtrack.config;
 
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -55,6 +56,16 @@ class SecurityConfigTest {
 	void shouldRejectBasicCredentials() throws Exception {
 		mockMvc.perform(get("/api/samples/advisor").header(HttpHeaders.AUTHORIZATION, "Basic YTpi"))
 				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void shouldSendSecurityHeadersOnEveryResponse() throws Exception {
+		mockMvc.perform(get("/api/samples/advisor"))
+				.andExpect(header().string("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"))
+				.andExpect(header().string("Referrer-Policy", "no-referrer"))
+				.andExpect(header().string("X-Frame-Options", "DENY"))
+				.andExpect(header().string("X-Content-Type-Options", "nosniff"))
+				.andExpect(header().exists("Permissions-Policy"));
 	}
 
 	@Test

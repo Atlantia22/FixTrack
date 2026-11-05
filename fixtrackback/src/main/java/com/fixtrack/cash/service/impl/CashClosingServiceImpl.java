@@ -12,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fixtrack.common.SortWhitelist;
 import com.fixtrack.cash.dto.CashClosingRequest;
 import com.fixtrack.cash.dto.CashClosingResponse;
 import com.fixtrack.cash.dto.CashTodayResponse;
@@ -36,6 +37,11 @@ import lombok.RequiredArgsConstructor;
 public class CashClosingServiceImpl implements CashClosingService {
 
 	private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2);
+
+	// Campos por los que el front puede ordenar el listado; cualquier otro responde 400
+	private static final Map<String, String> SORTABLE = Map.of(
+			"closingDate", "closingDate",
+			"id", "id");
 
 	private final CashClosingRepository cashClosingRepository;
 	private final PaymentRepository paymentRepository;
@@ -97,6 +103,7 @@ public class CashClosingServiceImpl implements CashClosingService {
 	@Transactional(readOnly = true)
 	public PageResponse<CashClosingResponse> search(Long closedById, LocalDate from, LocalDate to, Pageable pageable,
 			AuthenticatedUser actor) {
+		pageable = SortWhitelist.restrict(pageable, SORTABLE);
 		if (from != null && to != null && from.isAfter(to)) {
 			throw new BusinessRuleException("La fecha inicial no puede ser posterior a la final");
 		}

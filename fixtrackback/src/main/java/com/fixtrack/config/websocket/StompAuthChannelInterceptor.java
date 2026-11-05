@@ -40,12 +40,15 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 	private static final Set<Role> FRONT_DESK = Set.of(Role.ADVISOR, Role.COORDINATOR, Role.ADMIN);
 	private static final Set<Role> STAFF = Set.of(Role.ADVISOR, Role.COORDINATOR, Role.ADMIN, Role.TECHNICIAN);
 
-	// Topics internos y los roles que los ven; personas y equipos llevan datos de clientes, solo para recepción
+	// Topics internos y los roles que los ven. Órdenes, solicitudes, personas y equipos son de recepción; el técnico
+	// recibe solo sus órdenes y solicitudes por su cola privada, que Spring entrega únicamente a su sesión
 	private static final Map<String, Set<Role>> STAFF_TOPICS = Map.of(
 			RealtimeTopics.SPARE_PARTS, STAFF,
 			RealtimeTopics.STOCK_ALERTS, STAFF,
-			RealtimeTopics.INTERVENTIONS, STAFF,
-			RealtimeTopics.PART_REQUESTS, STAFF,
+			RealtimeTopics.INTERVENTIONS, FRONT_DESK,
+			RealtimeTopics.PART_REQUESTS, FRONT_DESK,
+			RealtimeTopics.USER_PREFIX + RealtimeTopics.MY_INTERVENTIONS, STAFF,
+			RealtimeTopics.USER_PREFIX + RealtimeTopics.MY_PART_REQUESTS, STAFF,
 			RealtimeTopics.PERSONS, FRONT_DESK,
 			RealtimeTopics.DEVICES, FRONT_DESK);
 
@@ -93,7 +96,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 			JwtTokenVerifier.VerifiedToken verified = tokenVerifier.verify(header.substring(BEARER_PREFIX.length()).trim());
 			AuthenticatedUser user = verified.user();
 			accessor.setUser(UsernamePasswordAuthenticationToken.authenticated(user, null, user.getAuthorities()));
-			expirations.register(accessor.getSessionId(), verified.expiresAt());
+			expirations.register(accessor.getSessionId(), user.id(), verified.expiresAt());
 		} catch (AuthenticationException ex) {
 			throw new AccessDeniedException(ex.getMessage());
 		}

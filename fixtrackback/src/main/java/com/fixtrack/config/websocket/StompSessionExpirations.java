@@ -6,27 +6,38 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Component;
 
-// Vencimiento del token de cada sesión STOMP autenticada; la conexión vive más que el token y hay que cortarla a tiempo
+// Sesiones STOMP autenticadas: de quién son y hasta cuándo vale su token. La conexión vive más que el token y hay que
+// cortarla a tiempo, también cuando el usuario se da de baja o cambia de rol o de contraseña antes de que venza
 @Component
 public class StompSessionExpirations {
 
-	private final Map<String, Instant> expirations = new ConcurrentHashMap<>();
+	private record SessionAccess(Long userId, Instant expiresAt) {
+	}
 
-	public void register(String sessionId, Instant expiresAt) {
+	private final Map<String, SessionAccess> sessions = new ConcurrentHashMap<>();
+
+	public void register(String sessionId, Long userId, Instant expiresAt) {
 		if (sessionId != null && expiresAt != null) {
-			expirations.put(sessionId, expiresAt);
+			sessions.put(sessionId, new SessionAccess(userId, expiresAt));
 		}
 	}
 
 	public void remove(String sessionId) {
 		if (sessionId != null) {
-			expirations.remove(sessionId);
+			sessions.remove(sessionId);
 		}
+	}
+
+	// Revoca de inmediato todas las sesiones del usuario: dejan de recibir mensajes y no pueden suscribirse
+	public void expireUser(Long userId, Instant now) {
+		sessions.replaceAll((sessionId, access) -> userId.equals(access.userId())
+				? new SessionAccess(access.userId(), now)
+				: access);
 	}
 
 	// Las sesiones anónimas del portal no se registran y nunca vencen por token
 	public boolean isExpired(String sessionId, Instant now) {
-		Instant expiresAt = sessionId == null ? null : expirations.get(sessionId);
-		return expiresAt != null && !expiresAt.isAfter(now);
+		SessionAccess access = sessionId == null ? null : sessions.get(sessionId);
+		return access != null && !access.expiresAt().isAfter(now);
 	}
 }

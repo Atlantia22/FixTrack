@@ -1,8 +1,9 @@
 # Análisis de seguridad — FixTrack
 
-**Fecha:** 3 de noviembre de 2026
+**Fecha:** 3 de noviembre de 2026, actualizado el 5 de noviembre de 2026
 **Alcance:** backend `fixtrackback` (Spring Boot 4.1, Java 25), frontend `fixtrack-front` (React 19 + Vite) y su configuración.
 **Versión anterior:** 31 de octubre de 2026 (en el historial de git). Este documento la reemplaza: verifica cada hallazgo contra el código, descarta los que no aplicaban y agrega los encontrados en esta revisión.
+**Actualización del 5 de noviembre:** revisión del canal en tiempo real (WebSocket) y de los cambios funcionales de esos días (sección 7), y reducción de los riesgos pendientes con sus pruebas (sección 8).
 
 ---
 
@@ -10,13 +11,17 @@
 
 | Estado | Cantidad |
 |---|---|
-| Corregidos en esta revisión | 10 |
-| Aceptados o pendientes (riesgo bajo o de despliegue) | 8 |
+| Corregidos en la revisión del 3 de noviembre | 10 |
+| Riesgos evitados en el diseño del canal en tiempo real (5 de noviembre) | 5 |
+| Pendientes mitigados el 5 de noviembre (4.2, 4.8, 4.9, 4.10) y reducidos (4.5, 4.6) | 6 |
+| Aceptados que quedan (negocio, una sola instancia o despliegue) | 6 |
 | Descartados del informe anterior | 3 |
 
 No se encontraron inyección SQL, XSS, endpoints internos sin control de rol ni accesos a órdenes de otro técnico (IDOR). El hallazgo más grave de esta revisión fue nuevo: `SampleDataInitializer` creaba por defecto usuarios con la contraseña fija `Password123*`. Ya está corregido.
 
-Pruebas: 67 pruebas del backend en verde (6 nuevas, cada una verificada en rojo sin su corrección), `oxlint` sin advertencias, `vite build` correcto y `npm audit` sin vulnerabilidades.
+Pruebas (3 de noviembre): 67 pruebas del backend en verde (6 nuevas, cada una verificada en rojo sin su corrección), `oxlint` sin advertencias, `vite build` correcto y `npm audit` sin vulnerabilidades.
+
+Pruebas (5 de noviembre): 108 pruebas del backend en verde, 11 del front, `oxlint` sin advertencias, `vite build` correcto, `npm audit` sin vulnerabilidades y una batería de 23 verificaciones de seguridad contra el servidor en marcha, todas correctas (sección 8.2).
 
 ---
 
@@ -104,13 +109,17 @@ Con el backend y el build del front corriendo contra MySQL local:
 | # | Riesgo | Nivel | Decisión |
 |---|---|---|---|
 | 4.1 | La clave de consulta son los últimos 4 dígitos del celular | Medio | **Regla de negocio** (`fixtrack.md`). La mitigan el bloqueo por código (5 fallos → 15 min, en la base de datos), el límite por IP y el PDF enmascarado. Probar las 10.000 claves de una orden toma semanas. Cambiarla a siempre aleatoria es una decisión del negocio |
-| 4.2 | Los listados aceptan ordenar por cualquier campo de la entidad (por ejemplo `sort=password`) | Bajo | Sin fuga práctica: ordenar por un hash bcrypt o un texto cifrado no revela nada, y los campos inválidos ya responden 400. Para cumplir la regla del «mapa de campos permitidos», llevar a todos los listados el `toSort` que ya usa `SparePartServiceImpl` |
+| 4.2 | ~~Los listados aceptan ordenar por cualquier campo de la entidad (por ejemplo `sort=password`)~~ | — | **Mitigado (5 de noviembre, sección 8).** Todos los listados paginados pasan por `SortWhitelist` con su mapa de campos permitidos |
 | 4.3 | `IpAttemptLimiter` vive en memoria | Bajo | Válido mientras haya una sola instancia. Con varias, pasarlo a Redis o a una tabla |
 | 4.4 | `ddl-auto: update` por defecto | Medio | Válido en desarrollo. En producción, `DDL_AUTO=validate`; Flyway, si el esquema empieza a cambiar con datos reales |
-| 4.5 | Sin HTTPS, CSP ni cabeceras de seguridad en el front | Medio (despliegue) | La API ya envía las cabeceras por defecto de Spring Security. Al desplegar: TLS en el proxy, `Content-Security-Policy`, `Strict-Transport-Security` y límite de tamaño del cuerpo |
-| 4.6 | Token en `sessionStorage` | Bajo | No hay vectores de XSS. Una CSP (4.5) lo refuerza |
+| 4.5 | Sin HTTPS ni cabeceras del servidor web del front | Bajo (despliegue) | **Reducido (5 de noviembre, sección 8):** la API envía CSP, `Referrer-Policy` y `Permissions-Policy`, y el build del front lleva su propia CSP. Queda para el despliegue: TLS en el proxy (con él, Spring envía `Strict-Transport-Security`), `frame-ancestors` en las cabeceras del servidor que sirva el front (una CSP en `<meta>` no lo admite) y límite de tamaño del cuerpo |
+| 4.6 | Token en `sessionStorage` | Muy bajo | No hay vectores de XSS y la CSP del build solo permite scripts propios, así que un script inyectado no puede ejecutarse ni enviar el token a otro origen (`connect-src` limitado a la API) |
 | 4.7 | El portal bloquea la fila de la orden (`PESSIMISTIC_WRITE`) en cada consulta | Bajo | Necesario para contar bien los fallos. Muchas consultas a un mismo código solo hacen esperar a esa orden, y el límite por IP las frena |
-| 4.8 | `PATCH /api/auth/password` no limita los intentos con la contraseña actual | Bajo | Exige un token válido. Si se quiere, aplicar la misma llave por usuario en `IpAttemptLimiter` |
+| 4.8 | ~~`PATCH /api/auth/password` no limita los intentos con la contraseña actual~~ | — | **Mitigado (5 de noviembre, sección 8).** 10 fallos por usuario en 15 minutos responden 429 |
+| 4.9 | ~~Un usuario dado de baja con el canal en tiempo real abierto sigue recibiendo avisos hasta que vence su token~~ | — | **Mitigado (5 de noviembre, sección 8).** La baja, el cambio de rol y el cambio de contraseña cortan sus avisos al instante |
+| 4.10 | ~~En `/topic/interventions` el técnico recibe el código, el estado y el nombre del técnico de todas las órdenes~~ | — | **Mitigado (5 de noviembre, sección 8).** El técnico recibe solo sus órdenes y solicitudes por su cola privada |
+| 4.11 | El broker del canal en tiempo real vive en memoria | Bajo | Válido con una sola instancia, igual que 4.3. Con varias, un broker externo (RabbitMQ con STOMP) |
+| 4.12 | Con «Ya lo tengo», el técnico da entrada de stock al crear un repuesto nuevo desde la orden | Bajo (control interno) | Decisión del negocio para registrar repuestos conseguidos por fuera. Queda en el kárdex como `IN_PURCHASE` con su nombre, el costo y la orden; el coordinador lo ve en Movimientos. Si se quiere, exigir aprobación del coordinador |
 
 ---
 
@@ -133,3 +142,95 @@ Con el backend y el build del front corriendo contra MySQL local:
 - La contraseña de desbloqueo va con AES-GCM y se borra al entregar o cancelar. La clave de consulta y las contraseñas se guardan con bcrypt.
 - `ProblemDetail` sin trazas ni SQL. Jackson rechaza decimales en enteros y todos los cuerpos pasan por Bean Validation.
 - Stock protegido con `@Version` y bloqueo pesimista en las solicitudes de repuestos.
+- El canal en tiempo real usa la misma validación del token que la API, permiso por rol en cada suscripción, avisos sin datos sensibles y solo avisa después de que el cambio se guarda.
+
+---
+
+## 7. Revisión del 5 de noviembre de 2026: tiempo real y cambios funcionales
+
+### 7.1 Qué cambió
+
+| Cambio | Superficie nueva |
+|---|---|
+| Canal en tiempo real: STOMP sobre WebSocket en `/ws`, con SockJS de respaldo | Una conexión de larga duración, un endpoint abierto en HTTP y un canal público para el portal |
+| Fecha y hora estimada de entrega con tiempo restante | Validación de fechas en el servidor |
+| Varios daños al recibir, patrón de desbloqueo y validación del documento por tipo | Nuevos datos de entrada |
+| «Otro» repuesto desde la orden, con entrada de stock por el técnico | Escritura en el inventario desde un rol que antes no la tenía (ver 4.12) |
+
+### 7.2 Riesgos evitados en el diseño del canal en tiempo real
+
+Antes de implementarlo se hizo un diagnóstico, y estos riesgos se resolvieron en el diseño:
+
+| # | Riesgo | Nivel | Cómo se evitó |
+|---|---|---|---|
+| 7.2.1 | **Canal público por código consecutivo:** con `/topic/orders/{código}` abierto, cualquiera podría suscribirse a `FT-00001`, `FT-00002`… y ver el estado y la entrega de todas las órdenes, saltándose la clave del portal | Alto | La suscripción exige el código **y la clave** (`accessKey`), y se valida con `PortalService.authorizeFollow`: mismo hash, mismo bloqueo del código tras 5 fallos y mismo límite por IP que la consulta. Solo se permite el canal de la orden original. Pruebas: `StompAuthChannelInterceptorTest` |
+| 7.2.2 | **Eventos con el DTO completo:** enviar la orden completa a todos rompía los permisos (el asesor no ve el desglose, el técnico solo ve sus órdenes, la contraseña de desbloqueo es solo del asesor y del técnico asignado) | Alto | Eventos «delgados» (`{ type, entity, id, payload, timestamp }`) sin dinero, contraseñas, documentos ni contactos; cada pantalla vuelve a pedir por la API, que aplica los permisos. Pruebas: `InterventionEventPublisherTest`, `RealtimeIntegrationTest` |
+| 7.2.3 | **Token sin validar en la conexión:** el navegador no envía `Authorization` en el handshake WebSocket | Alto | `StompAuthChannelInterceptor` valida el token en el `CONNECT` con `JwtTokenVerifier`, la misma clase que usa `JwtAuthFilter`: firma, vencimiento, usuario activo, rol sin cambios y contraseña sin cambiar. Cada `SUBSCRIBE` revisa el rol del canal y rechaza todo `SEND` del cliente |
+| 7.2.4 | **Conexión viva después de vencer el token** | Medio | `ExpiredSessionOutboundInterceptor` deja de entregar mensajes a una sesión cuyo token venció, y las suscripciones nuevas también se rechazan |
+| 7.2.5 | **Avisar cambios que luego se revierten** | Bajo | `RealtimeBroadcaster` publica con `@TransactionalEventListener(AFTER_COMMIT)` |
+
+### 7.3 Configuración revisada
+
+- **CORS del canal:** SockJS pide `/ws/info` con credenciales, y sin `Access-Control-Allow-Credentials: true` el navegador bloqueaba la conexión. Se permitió **solo para `/ws/**`** y con los mismos orígenes de `CORS_ALLOWED_ORIGINS`; la API sigue sin credenciales y un origen ajeno recibe 403. El canal no usa cookies para autenticar (el token va en el `CONNECT`), así que esto no abre la API. Prueba: `CorsConfigTest`.
+- **Mensajes de rechazo:** `StompErrorHandler` responde el motivo del rechazo («No tiene permiso para recibir estas actualizaciones») y no el mensaje interno de Spring.
+- **Validación de entrada nueva:** la fecha y hora de entrega debe ser posterior al ingreso (400 si no). El documento se valida por tipo en el servidor (cédulas solo con números y su largo; pasaporte alfanumérico), aunque el front ya lo limite.
+
+### 7.4 Verificación de punta a punta (5 de noviembre de 2026)
+
+| Comprobación | Resultado |
+|---|---|
+| Cliente STOMP con token falso | Rechazado en el `CONNECT` |
+| Técnico se suscribe a `/topic/persons` | Rechazado: «No tiene permiso para recibir estas actualizaciones» |
+| Anónimo se suscribe a `/topic/orders/FT-00001` sin clave | Rechazado: «No encontramos una orden con ese código y clave» |
+| Cambio por la API con el coordinador escuchando | Llega el evento, sin teléfono, correo ni documento |
+| `/ws/info` desde `http://localhost:5173` y desde un origen ajeno | Con `Allow-Credentials: true`, y 403 respectivamente |
+| Chrome sin ventana en Inventario y Órdenes | La pantalla recibe los eventos en vivo, sin errores en la consola |
+| Orden con entrega a una hora ya pasada | 400 «La fecha y hora estimada de entrega debe ser posterior al momento del ingreso» |
+
+---
+
+## 8. Reducción de riesgos del 5 de noviembre de 2026
+
+### 8.1 Qué se cambió
+
+| Riesgo | Antes | Ahora | Prueba |
+|---|---|---|---|
+| **4.2** Ordenar por cualquier campo | `?sort=password` o `?sort=accessKeyHash` llegaban a la consulta | `SortWhitelist` (en `common`) traduce el orden con el mapa de campos permitidos de cada listado (órdenes, personas, proveedores, solicitudes, movimientos, cierres de caja; repuestos ya lo tenía). Cualquier otro campo responde 400 antes de tocar la base, y el id desempata para que la paginación sea estable | `SortWhitelistTest`; batería contra el servidor |
+| **4.5** Cabeceras de seguridad | Solo las de Spring por defecto | La API envía `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `Referrer-Policy: no-referrer` y `Permissions-Policy` (sin cámara, micrófono, ubicación ni pagos), además de `X-Frame-Options` y `X-Content-Type-Options`. El build del front incluye una CSP: solo scripts propios, conexiones solo a la API y su canal, `frame-src blob:` para los PDF y `object-src 'none'` | `SecurityConfigTest.shouldSendSecurityHeadersOnEveryResponse`; Chrome contra el build |
+| **4.6** Token en `sessionStorage` | Protegido solo por la ausencia de XSS | La CSP impide ejecutar scripts ajenos y enviar datos a otros orígenes | Igual que 4.5 |
+| **4.8** Cambio de contraseña sin límite | Con un token robado se podía adivinar la contraseña actual sin freno | `IpAttemptLimiter` con llave `password:<id>`: 10 fallos en 15 minutos → 429 «Demasiados intentos con la contraseña actual» | `AuthServiceImplTest.shouldBlockPasswordChangeAfterTenWrongCurrentPasswords` |
+| **4.9** Avisos a un usuario dado de baja | Seguía recibiéndolos hasta que vencía su token (hasta 8 h) | `PersonAccessRevokedEvent` se publica al dar de baja, cambiar el rol o la contraseña (propia o por el administrador). `RealtimeAccessRevoker` marca vencidas sus sesiones STOMP al confirmar la transacción: dejan de recibir mensajes y de suscribirse | `StompAuthChannelInterceptorTest.shouldRejectSubscriptionsOnceTheUserLosesAccess`, `PersonServiceImplTest` |
+| **4.10** El técnico veía órdenes ajenas en el canal | `/topic/interventions` y `/topic/part-requests` llegaban a todo el personal | Esos topics son solo de recepción. El técnico recibe sus órdenes y solicitudes en `/user/queue/interventions` y `/user/queue/part-requests`, que Spring entrega únicamente a su sesión; si le quitan una orden, recibe el aviso para sacarla de su lista | `StompAuthChannelInterceptorTest`, `InterventionEventPublisherTest`, `RealtimeIntegrationTest.shouldDeliverOrderEventsOnlyToTheAssignedTechnician` |
+
+### 8.2 Pruebas ejecutadas
+
+| Conjunto | Resultado |
+|---|---|
+| Backend (`./mvnw test`): unitarias, `@WebMvcTest` e integración con un cliente STOMP real contra MySQL | **108 de 108** en verde, ninguna omitida |
+| Front: `npm test` (utilidades), `oxlint`, `vite build` | **11 de 11**, sin advertencias, build correcto |
+| Dependencias: `npm audit` (producción y desarrollo) | **0 vulnerabilidades** |
+| Batería de seguridad contra el servidor en marcha (cabeceras, orden de listados, límite de contraseña, permisos del canal, colas privadas, token falso, rutas sin sesión) | **23 de 23** correctas |
+| Build de producción con CSP en Chrome sin ventana (Órdenes e Inventario) | Recibe los eventos en vivo; ningún bloqueo de la CSP ni error en la consola |
+
+Detalle de la batería:
+
+| Verificación | Resultado |
+|---|---|
+| `GET /api/people?sort=password`, `/api/interventions?sort=accessKeyHash`, `?sort=unlockCode`, `/api/part-requests?sort=description` | 400 |
+| `GET /api/people?sort=fullName,desc`, `/api/interventions?sort=estimatedDeliveryDate&sort=estimatedDeliveryTime`, `/api/suppliers?sort=taxId`, `/api/stock-movements?sort=createdAt,desc` | 200 |
+| 11 cambios de contraseña con la contraseña actual errada | 10 × 400 y el 11.º 429 |
+| Técnico se suscribe a `/topic/interventions` o `/topic/part-requests` | Rechazado |
+| Técnico se suscribe a `/user/queue/interventions`; coordinador a `/topic/interventions` | Aceptado |
+| Anónimo se suscribe a `/topic/spare-parts`, o sigue una orden sin clave; conexión con token falso | Rechazado |
+| API sin token; ruta fuera de `/api` | 401; rechazada |
+
+### 8.3 Riesgos que quedan
+
+| # | Riesgo | Nivel | Por qué queda |
+|---|---|---|---|
+| 4.1 | Clave de consulta = últimos 4 dígitos del celular | Medio | Regla de negocio de `fixtrack.md`; mitigada por bloqueos y comprobante enmascarado |
+| 4.3 / 4.11 | Límite de intentos y broker en memoria | Bajo | Válidos con una sola instancia; con varias, Redis o un broker externo |
+| 4.4 | `ddl-auto: update` por defecto | Medio | Necesario para el desarrollo; en producción `DDL_AUTO=validate` con los scripts de `db/migration/` |
+| 4.5 | TLS y cabeceras del servidor web del front | Bajo | Dependen del despliegue |
+| 4.7 | Bloqueo de la fila en el portal | Bajo | Necesario para contar bien los fallos |
+| 4.12 | El técnico da entrada de stock con «Ya lo tengo» | Bajo | Decisión del negocio; queda trazado en el kárdex |

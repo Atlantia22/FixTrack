@@ -59,6 +59,7 @@ class PersonServiceImplTest {
 		personService.deactivate(7L);
 
 		verify(personEvents).personChanged(RealtimeEventType.DEACTIVATED, customer);
+		verify(personEvents).accessRevoked(customer);
 	}
 
 	@Test

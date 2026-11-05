@@ -5,7 +5,7 @@ import FormField from '../../components/FormField/FormField'
 import PageHeader from '../../components/PageHeader/PageHeader'
 import { useAuth } from '../../hooks/useAuth'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
-import { TOPICS, useRealtime } from '../../hooks/useRealtime'
+import { useInterventionsTopic, useRealtime } from '../../hooks/useRealtime'
 import { useRemoteData } from '../../hooks/useRemoteData'
 import * as catalogService from '../../services/catalogService'
 import * as interventionService from '../../services/interventionService'
@@ -78,7 +78,7 @@ export default function OrdersPage() {
   )
   // Tiempo real: la fila de la orden se actualiza en sitio con los datos del evento (estado, técnico y entrega);
   // solo se recarga si la orden puede entrar, salir o cambiar de lugar en el listado
-  useRealtime(TOPICS.INTERVENTIONS, ({ type, id, payload }) => {
+  useRealtime(useInterventionsTopic(), ({ type, id, payload }) => {
     const inList = orders.data?.content?.some((order) => order.id === id)
     if (inList) {
       orders.mutate((current) => ({

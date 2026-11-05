@@ -12,6 +12,11 @@ public final class RealtimeTopics {
 	public static final String PERSONS = PREFIX + "/persons";
 	public static final String ORDERS_PREFIX = PREFIX + "/orders/";
 
+	// Colas privadas: el servidor publica en /queue/... para un usuario y él se suscribe a /user/queue/...
+	public static final String USER_PREFIX = "/user";
+	public static final String MY_INTERVENTIONS = "/queue/interventions";
+	public static final String MY_PART_REQUESTS = "/queue/part-requests";
+
 	private RealtimeTopics() {
 	}
 

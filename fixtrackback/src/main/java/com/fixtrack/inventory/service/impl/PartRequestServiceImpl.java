@@ -17,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fixtrack.common.SortWhitelist;
 import com.fixtrack.common.BusinessRuleException;
 import com.fixtrack.common.ConflictException;
 import com.fixtrack.common.ForbiddenException;
@@ -69,6 +70,12 @@ public class PartRequestServiceImpl implements PartRequestService {
 	private static final Set<InterventionStatus> WORKING = EnumSet.of(InterventionStatus.IN_DIAGNOSIS,
 			InterventionStatus.WAITING_PARTS, InterventionStatus.IN_REPAIR);
 	private static final Set<Role> FRONT_DESK = EnumSet.of(Role.ADVISOR, Role.COORDINATOR, Role.ADMIN);
+
+	// Campos por los que el front puede ordenar el listado; cualquier otro responde 400
+	private static final Map<String, String> SORTABLE = Map.of(
+			"requestedAt", "requestedAt",
+			"status", "status",
+			"id", "id");
 
 	private final PartRequestRepository partRequestRepository;
 	private final SparePartRepository sparePartRepository;
@@ -141,6 +148,7 @@ public class PartRequestServiceImpl implements PartRequestService {
 	@Override
 	@Transactional(readOnly = true)
 	public PageResponse<PartRequestResponse> search(PartRequestStatus status, Pageable pageable) {
+		pageable = SortWhitelist.restrict(pageable, SORTABLE);
 		var page = partRequestRepository.search(status, pageable);
 		Map<Long, SupplierSparePart> preferred = preferredSuppliers(page.getContent());
 		return PageResponse.from(page.map(request -> toResponse(request, preferred)));
@@ -150,6 +158,7 @@ public class PartRequestServiceImpl implements PartRequestService {
 	@Transactional(readOnly = true)
 	public PageResponse<PartRequestResponse> findMine(AuthenticatedUser actor, PartRequestStatus status,
 			Pageable pageable) {
+		pageable = SortWhitelist.restrict(pageable, SORTABLE);
 		var page = partRequestRepository.searchByTechnician(actor.id(), status, pageable);
 		Map<Long, SupplierSparePart> preferred = preferredSuppliers(page.getContent());
 		return PageResponse.from(page.map(request -> toResponse(request, preferred)));

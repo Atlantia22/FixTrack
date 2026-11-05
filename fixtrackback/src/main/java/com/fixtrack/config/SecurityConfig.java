@@ -20,6 +20,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
+import org.springframework.security.web.header.writers.StaticHeadersWriter;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import com.fixtrack.infra.security.JwtAuthFilter;
@@ -68,6 +70,12 @@ public class SecurityConfig {
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.httpBasic(AbstractHttpConfigurer::disable)
 				.formLogin(AbstractHttpConfigurer::disable)
+				// La API solo devuelve JSON y PDF: no carga recursos, no se enmarca y no envía el origen a terceros
+				.headers(headers -> headers
+						.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'none'"))
+						.referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER))
+						.addHeaderWriter(new StaticHeadersWriter("Permissions-Policy",
+								"camera=(), microphone=(), geolocation=(), payment=()")))
 				.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 				.exceptionHandling(handling -> handling
 						.authenticationEntryPoint(entryPoint)

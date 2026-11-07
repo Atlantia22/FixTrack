@@ -3,6 +3,7 @@ package com.fixtrack.config.websocket;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.lang.reflect.Type;
 import java.net.URI;

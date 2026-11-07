@@ -19,14 +19,18 @@ class FixtrackApplicationTests {
 		registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.H2Dialect");
 		registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
 		
-		// Propiedades personalizadas de Fixtrack requeridas por el backend
+		// Propiedades de seguridad y configuración de Fixtrack
 		registry.add("fixtrack.encryption-key", () -> "kGBNTm18L6XChRoZlDJvP8dC6aXRgck2hPqGBm8ww58=");
 		registry.add("fixtrack.jwt.secret", () -> "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWZ=");
 		registry.add("fixtrack.jwt.expiration", () -> "8h");
 		registry.add("fixtrack.cors.allowed-origins", () -> "http://localhost:5173");
+		
+		// Credenciales del Admin y configuración de arranque para evitar que falle el inicializador
 		registry.add("fixtrack.admin.email", () -> "admin@fixtrack.local");
+		registry.add("fixtrack.admin.password", () -> "Admin123*");
 		registry.add("fixtrack.admin.document-number", () -> "0000000000");
 		registry.add("fixtrack.seed-data", () -> "false");
+		registry.add("fixtrack.demo-users.password", () -> "demo1234*");
 	}
 
 	@Test

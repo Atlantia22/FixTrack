@@ -71,8 +71,8 @@ class ReportServiceImplTest {
 		assertThat(report.totals().warrantyCost()).isEqualByComparingTo("30000");
 		assertThat(report.totals().profit()).isEqualByComparingTo("375000");
 		assertThat(report.byTechnician()).extracting("technicianName").containsExactly("Tomás", "Sin técnico");
-		assertThat(report.orders().getFirst().code()).isEqualTo("FT-00018-G1");
-		assertThat(report.orders().getFirst().profit()).isEqualByComparingTo("-30000");
+		assertThat(report.orders().get(0).code()).isEqualTo("FT-00018-G1");
+		assertThat(report.orders().get(0).profit()).isEqualByComparingTo("-30000");
 	}
 
 	@Test

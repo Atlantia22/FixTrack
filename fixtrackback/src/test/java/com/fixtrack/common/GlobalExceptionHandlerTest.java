@@ -34,8 +34,11 @@ import jakarta.validation.constraints.NotBlank;
 @WebMvcTest(controllers = GlobalExceptionHandlerTest.SampleController.class)
 @Import({ SecurityConfig.class, CorsConfig.class, ClockConfig.class, JwtService.class,
 		GlobalExceptionHandlerTest.SampleController.class })
-@TestPropertySource(properties = { "fixtrack.jwt.secret=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
-		"fixtrack.jwt.expiration=1h" })
+@TestPropertySource(properties = { 
+		"fixtrack.jwt.secret=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+		"fixtrack.jwt.expiration=1h",
+		"fixtrack.cors.allowed-origins=http://localhost:5173" // <-- ¡Añade esta línea aquí!
+})
 @WithMockUser
 class GlobalExceptionHandlerTest {
 

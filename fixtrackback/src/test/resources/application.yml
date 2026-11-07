@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/fixtrack?serverTimezone=America/Bogota&createDatabaseIfNotExist=true}
+    url: DB_URL:jdbc:mysql://localhost:3306/fixtrack?serverTimezone=America/Bogota&createDatabaseIfNotExist=true
     username: root
     password: Coloresdelamor123*
     driver-class-name: com.mysql.cj.jdbc.Driver

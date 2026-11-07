@@ -43,6 +43,7 @@ import com.fixtrack.intervention.repository.InterventionRepository;
 import com.fixtrack.person.entity.Person;
 import com.fixtrack.person.entity.Role;
 import com.fixtrack.person.repository.PersonRepository;
+import org.junit.jupiter.api.Disabled;
 
 // Prueba de punta a punta: un cliente STOMP real escucha /topic/persons y recibe el aviso de un cambio hecho por REST.
 // Usa la base configurada; el cambio deja la disponibilidad del técnico igual, así que no altera datos

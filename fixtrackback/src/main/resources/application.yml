@@ -8,16 +8,16 @@ spring:
     import: optional:file:.env[.properties]
   # Crea la base fixtrack al arrancar si no existe en el equipo; ddl-auto crea luego las tablas
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/fixtrack?serverTimezone=America/Bogota&createDatabaseIfNotExist=true}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD}
+    url: jdbc:mysql://localhost:3306/fixtrack?serverTimezone=America/Bogota&createDatabaseIfNotExist=true
+    username: root
+    password: Coloresdelamor123*
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
       # update solo en desarrollo; en producción DDL_AUTO=validate
-      ddl-auto: ${DDL_AUTO:update}
+      ddl-auto: update
     # SQL en la consola solo si SHOW_SQL=true (para depurar); apagado por defecto para no llenar el log
-    show-sql: ${SHOW_SQL:false}
+    show-sql: false
     open-in-view: false
     properties:
       hibernate:
@@ -38,16 +38,16 @@ spring:
 fixtrack:
   # Administrador que se crea al arrancar solo si no hay ninguno activo
   admin:
-    email: ${ADMIN_EMAIL:admin@fixtrack.local}
-    password: ${ADMIN_PASSWORD:}
+    email: admin@fixtrack.local
+    password: Admin123*
     full-name: Administrador
     document-type: CC
-    document-number: ${ADMIN_DOCUMENT_NUMBER:0000000000}
+    document-number: 0000000000
   # Catálogos, clientes y órdenes de ejemplo para desarrollo; solo con SEED_DATA=true y DEMO_USERS_PASSWORD
-  seed-data: ${SEED_DATA:false}
+  seed-data: false
   # Usuarios de prueba por rol para desarrollo; se crean solo si DEMO_USERS_PASSWORD tiene valor
   demo-users:
-    password: ${DEMO_USERS_PASSWORD:}
+    password: demo1234*
     users:
       - email: coordinador@fixtrack.local
         full-name: Coordinador de Prueba
@@ -66,12 +66,12 @@ fixtrack:
         document-number: "1000000003"
   # Orígenes del front separados por coma (por ejemplo https://fixtrack.midominio.co)
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+    allowed-origins: http://localhost:5173
   # Dirección del portal del cliente que se imprime en el comprobante de ingreso
-  portal-url: ${PORTAL_URL:http://localhost:5173/consulta}
+  portal-url: http://localhost:5173/consulta
   # Llave AES de 32 bytes en Base64 para cifrar la contraseña o patrón de desbloqueo
-  encryption-key: ${ENCRYPTION_KEY}
+  encryption-key: kGBNTm18L6XChRoZlDJvP8dC6aXRgck2hPqGBm8ww58=
   # Token de sesión: llave HMAC de al menos 32 bytes en Base64 y duración (por ejemplo 8h o 30m)
   jwt:
-    secret: ${JWT_SECRET}
-    expiration: ${JWT_EXPIRATION:8h}
+    secret: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWZ=
+    expiration: 8h

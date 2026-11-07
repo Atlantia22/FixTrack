@@ -42,7 +42,7 @@ import com.fixtrack.person.repository.PersonRepository;
 // Prueba de punta a punta: un cliente STOMP real escucha /topic/persons y recibe el aviso de un cambio hecho por REST.
 // Usa la base configurada; el cambio deja la disponibilidad del técnico igual, así que no altera datos
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles("test"
+@ActiveProfiles("test")
 class RealtimeIntegrationTest {
 
 	@LocalServerPort

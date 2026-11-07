@@ -7,7 +7,7 @@ import java.util.Locale;
 // Formato de pesos colombianos para mensajes y comprobantes ($ 45.000)
 public final class Money {
 
-	private static final Locale COLOMBIA = Locale.of("es", "CO");
+	private static final Locale COLOMBIA = new Locale("es", "CO");
 
 	private Money() {
 	}

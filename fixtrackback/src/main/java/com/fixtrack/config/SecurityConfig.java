@@ -79,16 +79,20 @@ public class SecurityConfig {
 				.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
 				.exceptionHandling(handling -> handling
 						.authenticationEntryPoint(entryPoint)
-						.accessDeniedHandler(
-								(request, response, ex) -> exceptionResolver.resolveException(request, response, null, ex)))
-				// Las rutas exigen sesión; el permiso de cada rol se define con @PreAuthorize en los controladores
-				.authorizeHttpRequests(auth -> auth
-						.requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-						.requestMatchers("/api/public/**", "/error").permitAll()
-						// El handshake WebSocket no lleva token; StompAuthChannelInterceptor lo valida en el CONNECT
-						.requestMatchers("/ws/**").permitAll()
-						.requestMatchers("/api/**").authenticated()
-						.anyRequest().denyAll());
-		return http.build();
+									.accessDeniedHandler(
+						(request, response, ex) -> exceptionResolver.resolveException(request, response, null, ex)))
+			    // Las rutas exigen sesión; el permiso de cada rol se define con @PreAuthorize en los controladores
+			    .authorizeHttpRequests(auth -> auth
+			            // 1. Permitir siempre las peticiones OPTIONS (Preflight de CORS) sin autenticación
+			            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+			            
+			            // 2. Tus reglas existentes
+			            .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+			            .requestMatchers("/api/public/**", "/error").permitAll()
+			            // El handshake WebSocket no lleva token; StompAuthChannelInterceptor lo valida en el CONNECT
+			            .requestMatchers("/ws/**").permitAll()
+			            .requestMatchers("/api/**").authenticated()
+			            .anyRequest().denyAll());
+return http.build();
 	}
 }

@@ -25,7 +25,7 @@ jobs:
 
       - name: npm install, build, and test
         run: |
-            cd fixtrackfront
+            cd fixtrack-front
             npm install
             npm run build
 
@@ -33,7 +33,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: fixtrackfront/dist
+          path: fixtrack-front/dist
 
   deploy:
     runs-on: ubuntu-latest

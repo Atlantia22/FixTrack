@@ -203,7 +203,8 @@ class RealtimeIntegrationTest {
 		registry.add("spring.datasource.username", () -> "sa");
 		registry.add("spring.datasource.password", () -> "");
 		registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.H2Dialect");
-		registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+		registry.add("spring.jpa.hibernate.ddl-auto", () -> "create"); // <-- Cambiado de create-drop a create
+		registry.add("spring.jpa.defer-datasource-initialization", () -> "true"); // <-- Añadido para asegurar orden correcto
 		
 		// Propiedades de seguridad y configuración de Fixtrack
 		registry.add("fixtrack.encryption-key", () -> "kGBNTm18L6XChRoZlDJvP8dC6aXRgck2hPqGBm8ww58=");

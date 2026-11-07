@@ -25,18 +25,17 @@ class FixtrackApplicationTests {
 		registry.add("fixtrack.jwt.secret", () -> "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWZ=");
 		registry.add("fixtrack.jwt.expiration", () -> "8h");
 		registry.add("fixtrack.cors.allowed-origins", () -> "http://localhost:5173");
-		
-		// URL del portal faltante que causaba el fallo
 		registry.add("fixtrack.portal-url", () -> "http://localhost:5173");
 		
-		// Credenciales del Admin y configuración de arranque
+		// Credenciales y datos del Administrador inicial para evitar el NULL en full_name
 		registry.add("fixtrack.admin.email", () -> "admin@fixtrack.local");
 		registry.add("fixtrack.admin.password", () -> "Admin123*");
 		registry.add("fixtrack.admin.document-number", () -> "0000000000");
+		registry.add("fixtrack.admin.full-name", () -> "Administrador Fixtrack"); // <-- ¡Añade esta línea!
+		
 		registry.add("fixtrack.seed-data", () -> "false");
 		registry.add("fixtrack.demo-users.password", () -> "demo1234*");
 	}
-
 	@Test
 	void contextLoads() {
 	}

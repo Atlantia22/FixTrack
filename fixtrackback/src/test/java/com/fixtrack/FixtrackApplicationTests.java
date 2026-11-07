@@ -17,16 +17,19 @@ class FixtrackApplicationTests {
 		registry.add("spring.datasource.username", () -> "sa");
 		registry.add("spring.datasource.password", () -> "");
 		registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.H2Dialect");
-		registry.add("spring.jpa.hibernate.ddl-auto", () -> "create"); // <-- Cambiado de create-drop a create
-		registry.add("spring.jpa.defer-datasource-initialization", () -> "true"); // <-- Añadido para asegurar orden correcto
+		registry.add("spring.jpa.hibernate.ddl-auto", () -> "create");
+		registry.add("spring.jpa.defer-datasource-initialization", () -> "true");
 		
-		// Propiedades de seguridad y configuración de Fixtrack
+		// Propiedades esenciales de Fixtrack
 		registry.add("fixtrack.encryption-key", () -> "kGBNTm18L6XChRoZlDJvP8dC6aXRgck2hPqGBm8ww58=");
 		registry.add("fixtrack.jwt.secret", () -> "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWZ=");
 		registry.add("fixtrack.jwt.expiration", () -> "8h");
 		registry.add("fixtrack.cors.allowed-origins", () -> "http://localhost:5173");
 		
-		// Credenciales del Admin y configuración de arranque para evitar que falle el inicializador
+		// URL del portal faltante que causaba el fallo
+		registry.add("fixtrack.portal-url", () -> "http://localhost:5173");
+		
+		// Credenciales del Admin y configuración de arranque
 		registry.add("fixtrack.admin.email", () -> "admin@fixtrack.local");
 		registry.add("fixtrack.admin.password", () -> "Admin123*");
 		registry.add("fixtrack.admin.document-number", () -> "0000000000");

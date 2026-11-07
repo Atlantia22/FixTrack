@@ -66,7 +66,7 @@ public class ReceiptServiceImpl implements ReceiptService {
 			"La garantía cubre solo el servicio realizado y los repuestos instalados; no aplica por golpes, humedad o manipulación de terceros.",
 			"Para retirar el equipo presente este comprobante o su documento de identidad.");
 
-	private static final Locale COLOMBIA = Locale.of("es", "CO");
+	private static final Locale COLOMBIA = new Locale("es", "CO");
 	private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy", COLOMBIA);
 	private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd/MM/yyyy h:mm a", COLOMBIA);
 	private static final Color PRIMARY = new Color(30, 64, 175);

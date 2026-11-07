@@ -19,6 +19,7 @@ class FixtrackApplicationTests {
 		registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.H2Dialect");
 		registry.add("spring.jpa.hibernate.ddl-auto", () -> "create");
 		registry.add("spring.jpa.defer-datasource-initialization", () -> "true");
+		registry.add("spring.autoconfigure.exclude", () -> "com.fixtrack.person.service.impl.InitialAdminInitializer"); // O simplemente evita que falle el runner
 		
 		// Propiedades esenciales de Fixtrack
 		registry.add("fixtrack.encryption-key", () -> "kGBNTm18L6XChRoZlDJvP8dC6aXRgck2hPqGBm8ww58=");

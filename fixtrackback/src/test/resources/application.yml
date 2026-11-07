@@ -1,26 +1,26 @@
 spring:
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/fixtrack?serverTimezone=America/Bogota&createDatabaseIfNotExist=true}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:}
+    username: root
+    password: Coloresdelamor123*
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: ${DDL_AUTO:update}
+      ddl-auto: update
     show-sql: true
 
 app:
   encryption:
-    key: ${ENCRYPTION_KEY}
+    key: kGBNTm18L6XChRoZlDJvP8dC6aXRgck2hPqGBm8ww58=
   jwt:
-    secret: ${JWT_SECRET}
+    secret: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWZ=
     expiration: 8h
   admin:
-    password: ${ADMIN_PASSWORD}
+    password: Admin123*
     email: admin@fixtrack.local
     document-number: 1000000000
   demo:
     users:
-      password: ${DEMO_USERS_PASSWORD}
+      password: demo1234*
   seed:
-    data: ${SEED_DATA:false}
+    data: false

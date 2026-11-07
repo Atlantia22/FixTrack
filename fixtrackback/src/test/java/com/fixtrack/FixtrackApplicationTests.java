@@ -18,9 +18,9 @@ class FixtrackApplicationTests {
 		registry.add("spring.datasource.password", () -> "");
 		registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.H2Dialect");
 		registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
-		registry.add("app.encryption.key", () -> "kGBNTm18L6XChRoZlDJvP8dC6aXRgck2hPqGBm8ww58=");
-		registry.add("app.jwt.secret", () -> "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWZ=");
-	} // <-- ¡Faltaba cerrar esta llave!
+		registry.add("fixtrack.encryption-key", () -> "kGBNTm18L6XChRoZlDJvP8dC6aXRgck2hPqGBm8ww58=");
+		registry.add("fixtrack.jwt.secret", () -> "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWZ=");
+	}
 
 	@Test
 	void contextLoads() {

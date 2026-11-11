@@ -35,6 +35,10 @@ jobs:
           name: node-app
           path: fixtrack-front/dist
 
+      - name: Verify build output
+        run: |
+              ls -la fixtrack-front/dist
+
   deploy:
     runs-on: ubuntu-latest
     needs: build

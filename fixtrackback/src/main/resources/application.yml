@@ -8,9 +8,9 @@ spring:
     import: optional:file:.env[.properties]
   # Crea la base fixtrack al arrancar si no existe en el equipo; ddl-auto crea luego las tablas
   datasource:
-    url: jdbc:mysql://localhost:3306/fixtrack?serverTimezone=America/Bogota&createDatabaseIfNotExist=true
-    username: root
-    password: Coloresdelamor123*
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
@@ -70,8 +70,8 @@ fixtrack:
   # Dirección del portal del cliente que se imprime en el comprobante de ingreso
   portal-url: http://localhost:5173/consulta
   # Llave AES de 32 bytes en Base64 para cifrar la contraseña o patrón de desbloqueo
-  encryption-key: kGBNTm18L6XChRoZlDJvP8dC6aXRgck2hPqGBm8ww58=
+  encryption-key: ${ENCRYPTION_KEY}
   # Token de sesión: llave HMAC de al menos 32 bytes en Base64 y duración (por ejemplo 8h o 30m)
   jwt:
-    secret: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWZ=
+    secret: ${JWT_SECRET}
     expiration: 8h

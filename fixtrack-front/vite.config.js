@@ -4,7 +4,7 @@ import { defineConfig, loadEnv } from 'vite'
 // Política de contenido del build: solo scripts propios y conexiones a la API y a su canal en tiempo real.
 // Va solo en el build porque en desarrollo Vite inyecta scripts en línea (recarga en caliente) que la política bloquearía
 function contentSecurityPolicy(env) {
-  const api = new URL(env.VITE_API_URL ?? 'fixtrack-djc5csbfapfhfyay.eastus-01.azurewebsites.net')
+  const api = new URL(env.VITE_API_URL ?? 'https://fixtrack-djc5csbfapfhfyay.eastus-01.azurewebsites.net')
   const realtime = new URL(env.VITE_WS_URL ?? `${api.origin}/ws`)
   const socketOrigin = realtime.origin.replace(/^http/, 'ws')
   const policy = [

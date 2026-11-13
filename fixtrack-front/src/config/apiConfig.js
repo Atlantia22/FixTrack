@@ -3,7 +3,7 @@ import { clearSession, getSession } from '../context/session'
 
 export const UNAUTHORIZED_EVENT = 'fixtrack:unauthorized'
 
-const baseURL = import.meta.env.VITE_API_URL
+const baseURL = import.meta.env.VITE_API_URL || 'https://fixtrack-djc5csbfapfhfyay.eastus-01.azurewebsites.net/api'
 
 
 if (!baseURL) {

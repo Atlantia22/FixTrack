@@ -5,6 +5,7 @@ export const UNAUTHORIZED_EVENT = 'fixtrack:unauthorized'
 
 const baseURL = import.meta.env.VITE_API_URL
 
+
 if (!baseURL) {
   console.error('Falta VITE_API_URL: copie .env.example como .env con la URL del backend')
 }

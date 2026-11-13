@@ -15,18 +15,16 @@ public class CorsConfig {
 
 	@Bean
 	public CorsConfigurationSource corsConfigurationSource(
-			@Value("${fixtrack.cors.allowed_origins}") List<String> allowedOrigins) {
+			@Value("${FIUTRACK_CORS_ALLOWED_ORIGINS:https://fixtrack-front-fygmhbb4ebc8aef4.eastus-01.azurewebsites.net,http://localhost:5173}") List<String> allowedOrigins) {
+		
 		CorsConfiguration config = new CorsConfiguration();
 		config.setAllowedOrigins(allowedOrigins);
-		config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE"));
-		// X-Access-Key lleva la clave vigente al pedir el comprobante de ingreso
+		config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 		config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Access-Key"));
-		// El front lee el nombre del PDF al descargar un comprobante
 		config.setExposedHeaders(List.of("Content-Disposition"));
 		config.setMaxAge(3600L);
+		config.setAllowCredentials(true);
 
-		// SockJS pide /ws/info y sus transportes con credenciales; sin Allow-Credentials el navegador bloquea la conexión.
-		// La sesión del canal no usa cookies (el token va en el CONNECT), así que esto no abre la API
 		CorsConfiguration realtime = new CorsConfiguration();
 		realtime.setAllowedOrigins(allowedOrigins);
 		realtime.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
@@ -34,10 +32,12 @@ public class CorsConfig {
 		realtime.setAllowCredentials(true);
 		realtime.setMaxAge(3600L);
 
-		// Gana la primera regla que coincide: /ws/** va antes que la general
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration("/ws/**", realtime);
 		source.registerCorsConfiguration("/**", config);
 		return source;
 	}
 }
+
+
+

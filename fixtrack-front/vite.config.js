@@ -1,6 +1,7 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
 
+
 // Política de contenido del build: solo scripts propios y conexiones a la API y a su canal en tiempo real.
 // Va solo en el build porque en desarrollo Vite inyecta scripts en línea (recarga en caliente) que la política bloquearía
 function contentSecurityPolicy(env) {

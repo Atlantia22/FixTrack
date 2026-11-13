@@ -78,7 +78,7 @@ class GlobalExceptionHandlerTest {
 
 	@Test
 	void shouldAllowPreflightFromFrontOrigin() throws Exception {
-		mockMvc.perform(options("/api/samples")
+		mockMvc.perform(options("/api/public/samples") // O una ruta pública equivalente
 				.header("Origin", "http://localhost:5173")
 				.header("Access-Control-Request-Method", "POST")
 				.header("Access-Control-Request-Headers", "Authorization, Content-Type"))

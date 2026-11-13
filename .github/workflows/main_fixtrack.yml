@@ -29,6 +29,7 @@ jobs:
           cd fixtrackback
           chmod +x mvnw
           ./mvnw clean install
+          mvn clean package -DskipTests
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
